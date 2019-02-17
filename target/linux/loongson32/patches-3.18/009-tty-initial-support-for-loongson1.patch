@@ -1,0 +1,62 @@
+From a0b0b32e61be6d9e5574aaa78b3d4037f0a8ce7d Mon Sep 17 00:00:00 2001
+From: Rosy Song <rosysong@rosinson.com>
+Date: Sun, 2 Dec 2018 15:52:29 +0800
+Subject: [PATCH 6/9] tty: initial support for loongson1
+
+Signed-off-by: Rosy Song <rosysong@rosinson.com>
+---
+ drivers/tty/serial/8250/8250_core.c | 22 ++++++++++++++++++++--
+ 1 file changed, 20 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/tty/serial/8250/8250_core.c b/drivers/tty/serial/8250/8250_core.c
+index 04da6f0e..818a4285 100644
+--- a/drivers/tty/serial/8250/8250_core.c
++++ b/drivers/tty/serial/8250/8250_core.c
+@@ -340,8 +340,26 @@ static int default_serial_dl_read(struct uart_8250_port *up)
+ /* Uart divisor latch write */
+ static void default_serial_dl_write(struct uart_8250_port *up, int value)
+ {
++	/*
++	* IER register will be cleared after set value on DLM register of Loongson1 ,
++	* So we need to restore the previous value of IER.
++	*/
++#ifdef CONFIG_MACH_LOONGSON1
++	unsigned char ier, lcr;
++
++	lcr = serial_in(up, UART_LCR);
++	serial_out(up, UART_LCR, lcr & (~UART_LCR_DLAB));
++	ier = serial_in(up, UART_IER);
++	serial_out(up, UART_LCR, lcr | UART_LCR_DLAB);
++#endif /* CONFIG_MACH_LOONGSON1 */
++
+ 	serial_out(up, UART_DLL, value & 0xff);
+ 	serial_out(up, UART_DLM, value >> 8 & 0xff);
++
++#ifdef CONFIG_MACH_LOONGSON1
++	serial_out(up, UART_LCR, lcr & (~UART_LCR_DLAB));
++	serial_out(up, UART_IER, ier);
++#endif /* CONFIG_MACH_LOONGSON1 */
+ }
+ 
+ #if defined(CONFIG_MIPS_ALCHEMY) || defined(CONFIG_SERIAL_8250_RT288X)
+@@ -873,7 +891,7 @@ static int broken_efr(struct uart_8250_port *up)
+ 	/*
+ 	 * Exar ST16C2550 "A2" devices incorrectly detect as
+ 	 * having an EFR, and report an ID of 0x0201.  See
+-	 * http://linux.derkeiler.com/Mailing-Lists/Kernel/2004-11/4812.html 
++	 * http://linux.derkeiler.com/Mailing-Lists/Kernel/2004-11/4812.html
+ 	 */
+ 	if (autoconfig_read_divisor_id(up) == 0x0201 && size_fifo(up) == 16)
+ 		return 1;
+@@ -1228,7 +1246,7 @@ static void autoconfig(struct uart_8250_port *up, unsigned int probeflags)
+ 	serial_out(up, UART_LCR, save_lcr);
+ 
+ 	port->fifosize = uart_config[up->port.type].fifo_size;
+-	old_capabilities = up->capabilities; 
++	old_capabilities = up->capabilities;
+ 	up->capabilities = uart_config[port->type].flags;
+ 	up->tx_loadsz = uart_config[port->type].tx_loadsz;
+ 
+-- 
+2.17.0
+

@@ -1,0 +1,82 @@
+From d5add27fc8a2ddfb80b416e1792568f58dba4456 Mon Sep 17 00:00:00 2001
+From: Rosy Song <rosysong@rosinson.com>
+Date: Sun, 2 Dec 2018 15:54:03 +0800
+Subject: [PATCH 7/9] usb: initial support for loongson1
+
+Signed-off-by: Rosy Song <rosysong@rosinson.com>
+---
+ drivers/usb/dwc2/platform.c | 36 ++++++++++++++++++++++++++++++++++++
+ 1 file changed, 36 insertions(+)
+
+diff --git a/drivers/usb/dwc2/platform.c b/drivers/usb/dwc2/platform.c
+index 121dbdaf..4b344bd3 100644
+--- a/drivers/usb/dwc2/platform.c
++++ b/drivers/usb/dwc2/platform.c
+@@ -105,6 +105,34 @@ static const struct dwc2_core_params params_rk3066 = {
+ 	.uframe_sched			= -1,
+ };
+ 
++static const struct dwc2_core_params params_loongson1c = {
++	.otg_cap			= 0,	/* HNP/SRP capable */
++	.otg_ver			= 0,	/* 1.3 */
++	.dma_enable			= 1,
++	.dma_desc_enable		= 0,
++	.speed				= 0,	/* High Speed */
++	.enable_dynamic_fifo		= 1,
++	.en_multiple_tx_fifo		= 1,
++	.host_rx_fifo_size		= 529,	/* 529 DWORDs */
++	.host_nperio_tx_fifo_size	= 256,	/* 256 DWORDs */
++	.host_perio_tx_fifo_size	= 0,	/* 0 DWORDs */
++	.max_transfer_size		= 2047,
++	.max_packet_count		= 63,
++	.host_channels			= 8,
++	.phy_type			= 1,	/* UTMI */
++	.phy_utmi_width			= 16,	/* 16 bits */
++	.phy_ulpi_ddr			= 0,	/* Single */
++	.phy_ulpi_ext_vbus		= 0,
++	.i2c_enable			= 0,
++	.ulpi_fs_ls			= 0,
++	.host_support_fs_ls_low_power	= 0,
++	.host_ls_low_power_phy_clk	= 0,	/* 48 MHz */
++	.ts_dline			= 0,
++	.reload_ctl			= 0,
++	.ahbcfg				= 0x10,
++	.uframe_sched			= 0,
++};
++
+ /**
+  * dwc2_driver_remove() - Called when the DWC_otg core is unregistered with the
+  * DWC_otg driver
+@@ -162,6 +190,9 @@ static int dwc2_driver_probe(struct platform_device *dev)
+ 	if (match && match->data) {
+ 		params = match->data;
+ 	} else {
++	#if defined(CONFIG_LOONGSON1_LS1C)
++		params = &params_loongson1c;
++	#else
+ 		/* Default all params to autodetect */
+ 		dwc2_set_all_params(&defparams, -1);
+ 		params = &defparams;
+@@ -171,6 +202,7 @@ static int dwc2_driver_probe(struct platform_device *dev)
+ 		 * it, but does not support it for SPLIT transactions.
+ 		 */
+ 		defparams.dma_desc_enable = 0;
++	#endif
+ 	}
+ 
+ 	hsotg = devm_kzalloc(&dev->dev, sizeof(*hsotg), GFP_KERNEL);
+@@ -202,7 +234,11 @@ static int dwc2_driver_probe(struct platform_device *dev)
+ 	dev_dbg(&dev->dev, "mapped PA %08lx to VA %p\n",
+ 		(unsigned long)res->start, hsotg->regs);
+ 
++#if defined(CONFIG_LOONGSON1_LS1C)
++	hsotg->dr_mode = USB_DR_MODE_HOST;
++#else
+ 	hsotg->dr_mode = of_usb_get_dr_mode(dev->dev.of_node);
++#endif
+ 
+ 	retval = dwc2_hcd_init(hsotg, irq, params);
+ 	if (retval)
+-- 
+2.17.0
+

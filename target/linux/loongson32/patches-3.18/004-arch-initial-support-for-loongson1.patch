@@ -1,0 +1,1330 @@
+From 71d1b1e0f397671224117d490c2e2b68a80d17bb Mon Sep 17 00:00:00 2001
+From: Rosy Song <rosysong@rosinson.com>
+Date: Sun, 2 Dec 2018 15:51:11 +0800
+Subject: [PATCH] arch: initial support for loongson1
+
+Signed-off-by: Rosy Song <rosysong@rosinson.com>
+---
+ arch/mips/Kconfig                             |  17 +-
+ arch/mips/include/asm/cpu-type.h              |   4 +-
+ arch/mips/include/asm/mach-loongson1/irq.h    |  69 ++-
+ .../include/asm/mach-loongson1/loongson1.h    |  86 +++-
+ .../include/asm/mach-loongson1/platform.h     |  17 +-
+ .../include/asm/mach-loongson1/regs-clk.h     |  50 +-
+ .../include/asm/mach-loongson1/regs-wdt.h     |   9 +-
+ arch/mips/kernel/cpu-probe.c                  |   6 +
+ arch/mips/kernel/r4k_switch.S                 |   4 +-
+ arch/mips/loongson1/Kconfig                   |  37 ++
+ arch/mips/loongson1/Makefile                  |   3 +-
+ arch/mips/loongson1/Platform                  |   5 +-
+ arch/mips/loongson1/common/clock.c            |   2 +-
+ arch/mips/loongson1/common/irq.c              |  60 ++-
+ arch/mips/loongson1/common/platform.c         | 454 +++++++++++++++++-
+ arch/mips/loongson1/common/prom.c             |  35 ++
+ arch/mips/loongson1/common/reset.c            |  20 +-
+ arch/mips/loongson1/common/setup.c            |   8 +
+ 18 files changed, 839 insertions(+), 47 deletions(-)
+
+diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
+index 9536ef91..81997fb8 100644
+--- a/arch/mips/Kconfig
++++ b/arch/mips/Kconfig
+@@ -300,6 +300,9 @@ config MACH_LOONGSON
+ 
+ config MACH_LOONGSON1
+ 	bool "Loongson 1 family of machines"
++	select ARCH_REQUIRE_GPIOLIB
++	select SYS_HAS_CPU_MIPS32_R1
++	select SYS_HAS_CPU_MIPS32_R2
+ 	select SYS_SUPPORTS_ZBOOT
+ 	help
+ 	  This enables support for the Loongson 1 based machines.
+@@ -1236,6 +1239,15 @@ config CPU_LOONGSON1B
+ 	  The Loongson 1B is a 32-bit SoC, which implements the MIPS32
+ 	  release 2 instruction set.
+ 
++config CPU_LOONGSON1C
++	bool "Loongson 1C"
++	depends on SYS_HAS_CPU_LOONGSON1C
++	select CPU_LOONGSON1
++	select USE_OF
++	help
++	  The Loongson 1C is a 32-bit SoC, which implements the MIPS32
++	  release 2 instruction set.
++
+ config CPU_MIPS32_R1
+ 	bool "MIPS32 Release 1"
+ 	depends on SYS_HAS_CPU_MIPS32_R1
+@@ -1569,8 +1581,6 @@ config CPU_LOONGSON2
+ 
+ config CPU_LOONGSON1
+ 	bool
+-	select CPU_MIPS32
+-	select CPU_MIPSR2
+ 	select CPU_HAS_PREFETCH
+ 	select CPU_SUPPORTS_32BIT_KERNEL
+ 	select CPU_SUPPORTS_HIGHMEM
+@@ -1611,6 +1621,9 @@ config SYS_HAS_CPU_LOONGSON2F
+ config SYS_HAS_CPU_LOONGSON1B
+ 	bool
+ 
++config SYS_HAS_CPU_LOONGSON1C
++	bool
++
+ config SYS_HAS_CPU_MIPS32_R1
+ 	bool
+ 
+diff --git a/arch/mips/include/asm/cpu-type.h b/arch/mips/include/asm/cpu-type.h
+index b4e2bd87..96bdcd9a 100644
+--- a/arch/mips/include/asm/cpu-type.h
++++ b/arch/mips/include/asm/cpu-type.h
+@@ -24,7 +24,9 @@ static inline int __pure __get_cpu_type(const int cpu_type)
+ 	case CPU_LOONGSON3:
+ #endif
+ 
+-#ifdef CONFIG_SYS_HAS_CPU_LOONGSON1B
++#if defined(CONFIG_SYS_HAS_CPU_LOONGSON1A) || \
++	defined(CONFIG_SYS_HAS_CPU_LOONGSON1B) || \
++	defined(CONFIG_SYS_HAS_CPU_LOONGSON1C)
+ 	case CPU_LOONGSON1:
+ #endif
+ 
+diff --git a/arch/mips/include/asm/mach-loongson1/irq.h b/arch/mips/include/asm/mach-loongson1/irq.h
+index 96bfb1c1..97a417df 100644
+--- a/arch/mips/include/asm/mach-loongson1/irq.h
++++ b/arch/mips/include/asm/mach-loongson1/irq.h
+@@ -36,15 +36,34 @@
+ #define LS1X_IRQ_BASE			MIPS_CPU_IRQS
+ #define LS1X_IRQ(n, x)			(LS1X_IRQ_BASE + (n << 5) + (x))
+ 
++#ifdef CONFIG_LOONGSON1_LS1C
++#define LS1X_UART0_IRQ			LS1X_IRQ(0, 2)
++#define LS1X_UART1_IRQ			LS1X_IRQ(0, 4)
++#define LS1X_UART2_IRQ			LS1X_IRQ(0, 5)
++#define LS1X_UART3_IRQ			LS1X_IRQ(0, 29)
++#define LS1X_UART4_IRQ			LS1X_IRQ(1, 5)
++#define LS1X_UART5_IRQ			LS1X_IRQ(1, 6)
++#define LS1X_UART6_IRQ			LS1X_IRQ(1, 7)
++#define LS1X_UART7_IRQ			LS1X_IRQ(1, 8)
++#define LS1X_UART8_IRQ			LS1X_IRQ(1, 9)
++#define LS1X_UART9_IRQ			LS1X_IRQ(1, 13)
++#define LS1X_UART10_IRQ			LS1X_IRQ(1, 14)
++#define LS1X_UART11_IRQ			LS1X_IRQ(1, 15)
++#else
+ #define LS1X_UART0_IRQ			LS1X_IRQ(0, 2)
+ #define LS1X_UART1_IRQ			LS1X_IRQ(0, 3)
+ #define LS1X_UART2_IRQ			LS1X_IRQ(0, 4)
+ #define LS1X_UART3_IRQ			LS1X_IRQ(0, 5)
++#endif /* CONFIG_LOONGSON1_LS1C */
++
+ #define LS1X_CAN0_IRQ			LS1X_IRQ(0, 6)
+ #define LS1X_CAN1_IRQ			LS1X_IRQ(0, 7)
+ #define LS1X_SPI0_IRQ			LS1X_IRQ(0, 8)
+ #define LS1X_SPI1_IRQ			LS1X_IRQ(0, 9)
+ #define LS1X_AC97_IRQ			LS1X_IRQ(0, 10)
++#define LS1X_I2S_IRQ			LS1X_IRQ(0, 10)
++#define LS1X_MS_IRQ			LS1X_IRQ(0, 11)
++#define LS1X_KB_IRQ			LS1X_IRQ(0, 12)
+ #define LS1X_DMA0_IRQ			LS1X_IRQ(0, 13)
+ #define LS1X_DMA1_IRQ			LS1X_IRQ(0, 14)
+ #define LS1X_DMA2_IRQ			LS1X_IRQ(0, 15)
+@@ -61,13 +80,59 @@
+ #define LS1X_RTC_TICK_IRQ		LS1X_IRQ(0, 27)
+ #define LS1X_TOY_TICK_IRQ		LS1X_IRQ(0, 28)
+ 
++#ifdef CONFIG_LOONGSON1_LS1C
++#define LS1X_SDIO_IRQ	LS1X_IRQ(0, 31)
++#endif /* CONFIG_LOONGSON1_LS1C */
++
+ #define LS1X_EHCI_IRQ			LS1X_IRQ(1, 0)
+ #define LS1X_OHCI_IRQ			LS1X_IRQ(1, 1)
++
++#ifdef CONFIG_LOONGSON1_LS1C
++#define LS1X_OTG_IRQ			LS1X_IRQ(1, 2)
++#define LS1X_GMAC0_IRQ			LS1X_IRQ(1, 3)
++#define LS1X_CAM_IRQ			LS1X_IRQ(1, 4)
++#else
+ #define LS1X_GMAC0_IRQ			LS1X_IRQ(1, 2)
+ #define LS1X_GMAC1_IRQ			LS1X_IRQ(1, 3)
++#define LS1X_SATA_IRQ			LS1X_IRQ(1, 4)
++#define LS1A_GPU_IRQ			LS1X_IRQ(1, 5)
++#endif /* CONFIG_LOONGSON1_LS1C */
++
++/*
++ * For LS1C 300B
++ */
++#define LS1X_I2C2_IRQ			LS1X_IRQ(1, 17)
++#define LS1X_I2C1_IRQ			LS1X_IRQ(1, 18)
++#define LS1X_I2C0_IRQ			LS1X_IRQ(1, 19)
++
++#define LS1X_GPIO_FIRST_IRQ		LS1X_IRQ(2, 0)
+ 
+-#define LS1X_IRQS		(LS1X_IRQ(4, 31) + 1 - LS1X_IRQ_BASE)
++#if defined(CONFIG_LOONGSON1_LS1A)
++#define LS1X_GPIO_IRQ_COUNT 128
++#elif	defined(CONFIG_LOONGSON1_LS1B)
++#define LS1X_GPIO_IRQ_COUNT 96
++#elif	defined(CONFIG_LOONGSON1_LS1C)
++#define LS1X_GPIO_IRQ_COUNT 128
++#endif /* CONFIG_LOONGSON1_LS1A/1B/1C */
+ 
+-#define NR_IRQS			(MIPS_CPU_IRQS + LS1X_IRQS)
++#define LS1X_GPIO_LAST_IRQ  (LS1X_GPIO_FIRST_IRQ + LS1X_GPIO_IRQ_COUNT-1)
++
++/*
++ * Interrupt controllers
++ */
++#if defined(CONFIG_LOONGSON1_LS1A)
++#define INTN 5
++#elif defined(CONFIG_LOONGSON1_LS1B)
++#define INTN 4
++#elif defined(CONFIG_LOONGSON1_LS1C)
++#define INTN 5
++#endif /* CONFIG_LOONGSON1_LS1A/1B/1C */
++
++#define LS1X_IRQS		(LS1X_IRQ(INTN, 0) - LS1X_IRQ_BASE)
++
++/*
++ * IRQ resource maybe not enough, we need more
++ */
++#define NR_IRQS			320
+ 
+ #endif /* __ASM_MACH_LOONGSON1_IRQ_H */
+diff --git a/arch/mips/include/asm/mach-loongson1/loongson1.h b/arch/mips/include/asm/mach-loongson1/loongson1.h
+index 5c437c2b..9808c314 100644
+--- a/arch/mips/include/asm/mach-loongson1/loongson1.h
++++ b/arch/mips/include/asm/mach-loongson1/loongson1.h
+@@ -15,10 +15,36 @@
+ 
+ #define DEFAULT_MEMSIZE			256	/* If no memsize provided */
+ 
++#if defined(CONFIG_LOONGSON1_LS1A)
++#define OSC			33000000 /* Hz */
++#define DIV_APB		2
++#elif defined(CONFIG_LS1B_DEV_BOARD)
++#define OSC			33000000 /* Hz */
++#define DIV_APB		2
++#elif defined(CONFIG_LS1B_CORE_BOARD)
++#define OSC			25000000 /* Hz */
++#define DIV_APB		2
++#elif defined(CONFIG_LOONGSON1_LS1C)
++#define OSC			24000000 /* Hz */
++#define DIV_APB		1
++#endif
++
++/* display controller */
++#define LS1X_DC0_BASE	0x1c301240
++
+ /* Loongson 1 Register Bases */
++#define LS1X_MUX_BASE			0x1fd00420
+ #define LS1X_INTC_BASE			0x1fd01040
++
++#ifdef CONFIG_LOONGSON1_LS1C
++#define LS1X_OTG_BASE			0x1fe00000
++#define LS1X_EHCI_BASE			0x1fe20000
++#define LS1X_OHCI_BASE			0x1fe28000
++#else
+ #define LS1X_EHCI_BASE			0x1fe00000
+ #define LS1X_OHCI_BASE			0x1fe08000
++#endif /* CONFIG_LOONGSON1_LS1C */
++
+ #define LS1X_GMAC0_BASE			0x1fe10000
+ #define LS1X_GMAC1_BASE			0x1fe20000
+ 
+@@ -26,19 +52,77 @@
+ #define LS1X_UART1_BASE			0x1fe44000
+ #define LS1X_UART2_BASE			0x1fe48000
+ #define LS1X_UART3_BASE			0x1fe4c000
++
++#ifdef	CONFIG_LOONGSON1_LS1C
++#define LS1X_UART4_BASE			0x1fe4c400
++#define LS1X_UART5_BASE			0x1fe4c500
++#define LS1X_UART6_BASE			0x1fe4c600
++#define LS1X_UART7_BASE			0x1fe4c700
++#define LS1X_UART8_BASE			0x1fe4c800
++#define LS1X_UART9_BASE			0x1fe4c900
++#define LS1X_UART10_BASE			0x1fe4ca00
++#define LS1X_UART11_BASE			0x1fe4cb00
++#endif /* CONFIG_LOONGSON1_LS1C */
++
+ #define LS1X_CAN0_BASE			0x1fe50000
+ #define LS1X_CAN1_BASE			0x1fe54000
+ #define LS1X_I2C0_BASE			0x1fe58000
+ #define LS1X_I2C1_BASE			0x1fe68000
+ #define LS1X_I2C2_BASE			0x1fe70000
+-#define LS1X_PWM_BASE			0x1fe5c000
++#define LS1X_PWM0_BASE			0x1fe5c000
++#define LS1X_PWM1_BASE			0x1fe5c010
++#define LS1X_PWM2_BASE			0x1fe5c020
++#define LS1X_PWM3_BASE			0x1fe5c030
++
++#if defined(CONFIG_LOONGSON1_LS1A)
++#define LS1X_WDT_BASE			0x1fe7c060
++#elif	defined(CONFIG_LOONGSON1_LS1B) || defined(CONFIG_LOONGSON1_LS1C)
+ #define LS1X_WDT_BASE			0x1fe5c060
++#endif /* CONFIG_LOONGSON1_LS1A/1B/1C */
++
+ #define LS1X_RTC_BASE			0x1fe64000
++
++#ifdef CONFIG_LOONGSON1_LS1C
++#define LS1X_AC97_BASE			0x1fe60000
++#define LS1X_I2S_BASE			0x1fe60000
++#else
+ #define LS1X_AC97_BASE			0x1fe74000
++#endif /* CONFIG_LOONGSON1_LS1C */
++
+ #define LS1X_NAND_BASE			0x1fe78000
+ #define LS1X_CLK_BASE			0x1fe78030
+ 
++/* spi */
++#define LS1X_SPI0_BASE	0x1fe80000
++#define LS1X_SPI1_BASE	0x1fec0000
++
++#define SPI0_CS0				0
++#define SPI0_CS1				1
++#define SPI0_CS2				2
++#define SPI0_CS3				3
++
++#define SPI1_CS0				0
++#define SPI1_CS1				1
++#define SPI1_CS2				2
++
++/* sdio */
++#if defined(CONFIG_LOONGSON1_LS1C)
++#define LS1X_SDIO_BASE	0x1fe6c000
++#endif
++
++/* sata */
++#define LS1X_SATA_BASE	0x1fe30000
++
++/* PS2 */
++#define LS1X_PS2_BASE	0x1fe60000
++
++/* ADC */
++#define LS1X_ADC_BASE	0x1fe74000
++
+ #include <regs-clk.h>
+ #include <regs-wdt.h>
++#include <regs-mux.h>
++#include <regs-pwm.h>
++#include <regs-gpio.h>
+ 
+ #endif /* __ASM_MACH_LOONGSON1_LOONGSON1_H */
+diff --git a/arch/mips/include/asm/mach-loongson1/platform.h b/arch/mips/include/asm/mach-loongson1/platform.h
+index 30c13e50..2e039727 100644
+--- a/arch/mips/include/asm/mach-loongson1/platform.h
++++ b/arch/mips/include/asm/mach-loongson1/platform.h
+@@ -13,10 +13,19 @@
+ 
+ #include <linux/platform_device.h>
+ 
+-extern struct platform_device ls1x_uart_device;
+-extern struct platform_device ls1x_eth0_device;
+-extern struct platform_device ls1x_ehci_device;
+-extern struct platform_device ls1x_rtc_device;
++extern struct platform_device ls1x_uart_pdev;
++extern struct platform_device ls1x_cpufreq_pdev;
++extern struct platform_device ls1x_eth0_pdev;
++extern struct platform_device ls1x_eth1_pdev;
++extern struct platform_device ls1x_ohci_pdev;
++extern struct platform_device ls1x_ehci_pdev;
++extern struct platform_device ls1x_rtc_pdev;
++extern struct platform_device ls1x_toy_pdev;
++extern struct platform_device ls1x_wdt_pdev;
++extern struct platform_device ls1x_nand_pdev;
++extern struct platform_device ls1x_spi0_pdev;
++extern struct platform_device ls1x_spi1_pdev;
++extern struct platform_device ls1x_otg_pdev;
+ 
+ extern void __init ls1x_clk_init(void);
+ extern void __init ls1x_serial_setup(struct platform_device *pdev);
+diff --git a/arch/mips/include/asm/mach-loongson1/regs-clk.h b/arch/mips/include/asm/mach-loongson1/regs-clk.h
+index fb6a3ff9..0236c051 100644
+--- a/arch/mips/include/asm/mach-loongson1/regs-clk.h
++++ b/arch/mips/include/asm/mach-loongson1/regs-clk.h
+@@ -19,16 +19,60 @@
+ #define LS1X_CLK_PLL_DIV		LS1X_CLK_REG(0x4)
+ 
+ /* Clock PLL Divisor Register Bits */
++#if defined(CONFIG_LOONGSON1_LS1C)
+ #define DIV_DC_EN			(0x1 << 31)
++#define DIV_DC				(0x7f << 24)
++#define DIV_CAM_EN			(0x1 << 23)
++#define DIV_CAM			(0x7f << 16)
++#define DIV_CPU_EN			(0x1 << 15)
++#define DIV_CPU				(0x7f << 8)
++#define DIV_DC_SEL_EN			(0x1 << 5)
++#define DIV_DC_SEL				(0x1 << 4)
++#define DIV_CAM_SEL_EN			(0x1 << 3)
++#define DIV_CAM_SEL				(0x1 << 2)
++#define DIV_CPU_SEL_EN			(0x1 << 1)
++#define DIV_CPU_SEL				(0x1 << 0)
++
++#define DIV_DC_SHIFT			24
++#define DIV_CAM_SHIFT			16
++#define DIV_CPU_SHIFT			8
++
++#define DIV_DC_WIDTH			7
++#define DIV_CPU_WIDTH			7
++#define DIV_DDR_WIDTH			7
++
++#else
++#define DIV_DC_EN			(0x1 << 31)
++#define DIV_DC_RST			(0x1 << 30)
+ #define DIV_CPU_EN			(0x1 << 25)
++#define DIV_CPU_RST			(0x1 << 24)
+ #define DIV_DDR_EN			(0x1 << 19)
++#define DIV_DDR_RST			(0x1 << 18)
++#define RST_DC_EN			(0x1 << 5)
++#define RST_DC				(0x1 << 4)
++#define RST_DDR_EN			(0x1 << 3)
++#define RST_DDR				(0x1 << 2)
++#define RST_CPU_EN			(0x1 << 1)
++#define RST_CPU				0x1
+ 
+ #define DIV_DC_SHIFT			26
+ #define DIV_CPU_SHIFT			20
+ #define DIV_DDR_SHIFT			14
+ 
+-#define DIV_DC_WIDTH			5
+-#define DIV_CPU_WIDTH			5
+-#define DIV_DDR_WIDTH			5
++#define DIV_DC_WIDTH			4
++#define DIV_CPU_WIDTH			4
++#define DIV_DDR_WIDTH			4
++
++#define BYPASS_DC_SHIFT			12
++#define BYPASS_DDR_SHIFT		10
++#define BYPASS_CPU_SHIFT		8
++
++#define BYPASS_DC_WIDTH			1
++#define BYPASS_DDR_WIDTH		1
++#define BYPASS_CPU_WIDTH		1
++
++#define DIV_DDR				(0x1f << 14)
++
++#endif /* CONFIG_LOONGSON1_LS1C */
+ 
+ #endif /* __ASM_MACH_LOONGSON1_REGS_CLK_H */
+diff --git a/arch/mips/include/asm/mach-loongson1/regs-wdt.h b/arch/mips/include/asm/mach-loongson1/regs-wdt.h
+index 6574568c..8bd14e57 100644
+--- a/arch/mips/include/asm/mach-loongson1/regs-wdt.h
++++ b/arch/mips/include/asm/mach-loongson1/regs-wdt.h
+@@ -12,11 +12,8 @@
+ #ifndef __ASM_MACH_LOONGSON1_REGS_WDT_H
+ #define __ASM_MACH_LOONGSON1_REGS_WDT_H
+ 
+-#define LS1X_WDT_REG(x) \
+-		((void __iomem *)KSEG1ADDR(LS1X_WDT_BASE + (x)))
+-
+-#define LS1X_WDT_EN			LS1X_WDT_REG(0x0)
+-#define LS1X_WDT_SET			LS1X_WDT_REG(0x4)
+-#define LS1X_WDT_TIMER			LS1X_WDT_REG(0x8)
++#define WDT_EN			0x0
++#define WDT_TIMER		0x4
++#define WDT_SET			0x8
+ 
+ #endif /* __ASM_MACH_LOONGSON1_REGS_WDT_H */
+diff --git a/arch/mips/kernel/cpu-probe.c b/arch/mips/kernel/cpu-probe.c
+index 5d6e59f2..bb933c47 100644
+--- a/arch/mips/kernel/cpu-probe.c
++++ b/arch/mips/kernel/cpu-probe.c
+@@ -826,7 +826,13 @@ static inline void cpu_probe_legacy(struct cpuinfo_mips *c, unsigned int cpu)
+ 
+ 		switch (c->processor_id & PRID_REV_MASK) {
+ 		case PRID_REV_LOONGSON1B:
++		#if defined(CONFIG_LOONGSON1_LS1A)
++			__cpu_name[cpu] = "Loongson 1A";
++		#elif defined(CONFIG_LOONGSON1_LS1B)
+ 			__cpu_name[cpu] = "Loongson 1B";
++		#elif defined(CONFIG_LOONGSON1_LS1C)
++			__cpu_name[cpu] = "Loongson 1C";
++		#endif
+ 			break;
+ 		}
+ 
+diff --git a/arch/mips/kernel/r4k_switch.S b/arch/mips/kernel/r4k_switch.S
+index 64591e67..c10f5790 100644
+--- a/arch/mips/kernel/r4k_switch.S
++++ b/arch/mips/kernel/r4k_switch.S
+@@ -240,7 +240,7 @@ LEAF(_init_fpu)
+ 	mtc1	t1, $f30
+ 	mtc1	t1, $f31
+ 
+-#ifdef CONFIG_CPU_MIPS32_R2
++#if defined(CONFIG_CPU_MIPS32_R2) && !defined(CONFIG_CPU_LOONGSON1)
+ 	.set    push
+ 	.set    mips32r2
+ 	.set	fp=64
+@@ -280,7 +280,7 @@ LEAF(_init_fpu)
+ 	mthc1   t1, $f30
+ 	mthc1   t1, $f31
+ 1:	.set    pop
+-#endif /* CONFIG_CPU_MIPS32_R2 */
++#endif /* defined(CONFIG_CPU_MIPS32_R2) && !defined(CONFIG_CPU_LOONGSON1) */
+ #else
+ 	.set	arch=r4000
+ 	dmtc1	t1, $f0
+diff --git a/arch/mips/loongson1/Kconfig b/arch/mips/loongson1/Kconfig
+index e23c25d0..436dabd1 100644
+--- a/arch/mips/loongson1/Kconfig
++++ b/arch/mips/loongson1/Kconfig
+@@ -18,6 +18,43 @@ config LOONGSON1_LS1B
+ 	select SYS_HAS_EARLY_PRINTK
+ 	select COMMON_CLK
+ 
++config LOONGSON1_LS1C
++	bool "Loongson LS1C board"
++	select CEVT_R4K if !MIPS_EXTERNAL_TIMER
++	select CSRC_R4K if !MIPS_EXTERNAL_TIMER
++	select SYS_HAS_CPU_LOONGSON1C
++	select DMA_NONCOHERENT
++	select BOOT_ELF32
++	select IRQ_CPU
++	select SYS_SUPPORTS_32BIT_KERNEL
++	select SYS_SUPPORTS_LITTLE_ENDIAN
++	select SYS_SUPPORTS_HIGHMEM
++	select SYS_SUPPORTS_MIPS16
++	select SYS_HAS_EARLY_PRINTK
++	select USE_GENERIC_EARLY_PRINTK_8250
++	select COMMON_CLK
++
++if LOONGSON1_LS1C
++
++choice
++
++	prompt "Loongson LS1C board config"
++	default LS1C_ROSYWRT_N19_BOARD
++
++config LS1C_ROSYWRT_N19_BOARD
++	bool "RosyWrt N19 Nas (ls1c300b)"
++	select LOONGSON1_LS1C300B
++
++endchoice
++
++config LOONGSON1_LS1C300A
++	bool
++
++config LOONGSON1_LS1C300B
++	bool
++
++endif # LOONGSON1_LS1C
++
+ endchoice
+ 
+ endif # MACH_LOONGSON1
+diff --git a/arch/mips/loongson1/Makefile b/arch/mips/loongson1/Makefile
+index 9719c758..0be4e8f0 100644
+--- a/arch/mips/loongson1/Makefile
++++ b/arch/mips/loongson1/Makefile
+@@ -5,7 +5,8 @@
+ obj-$(CONFIG_MACH_LOONGSON1) += common/
+ 
+ #
+-# Loongson LS1B board
++# Loongson LS1X board
+ #
+ 
+ obj-$(CONFIG_LOONGSON1_LS1B)  += ls1b/
++obj-$(CONFIG_LOONGSON1_LS1C)  += ls1c/
+diff --git a/arch/mips/loongson1/Platform b/arch/mips/loongson1/Platform
+index 11863441..afdbec6f 100644
+--- a/arch/mips/loongson1/Platform
++++ b/arch/mips/loongson1/Platform
+@@ -1,7 +1,8 @@
+ cflags-$(CONFIG_CPU_LOONGSON1)	+= \
+-	$(call cc-option,-march=mips32r2,-mips32r2 -U_MIPS_ISA -D_MIPS_ISA=_MIPS_ISA_MIPS32) \
+-	-Wa,-mips32r2 -Wa,--trap
++	$(call cc-option,-march=mips32,-mips32 -U_MIPS_ISA -D_MIPS_ISA=_MIPS_ISA_MIPS32) \
++	-Wa,-mips32 -Wa,--trap
+ 
+ platform-$(CONFIG_MACH_LOONGSON1)	+= loongson1/
+ cflags-$(CONFIG_MACH_LOONGSON1)		+= -I$(srctree)/arch/mips/include/asm/mach-loongson1
+ load-$(CONFIG_LOONGSON1_LS1B)		+= 0xffffffff80100000
++load-$(CONFIG_LOONGSON1_LS1C)		+= 0xffffffff80200000
+diff --git a/arch/mips/loongson1/common/clock.c b/arch/mips/loongson1/common/clock.c
+index b4437f19..4c0814cb 100644
+--- a/arch/mips/loongson1/common/clock.c
++++ b/arch/mips/loongson1/common/clock.c
+@@ -20,7 +20,7 @@ void __init plat_time_init(void)
+ 	ls1x_clk_init();
+ 
+ 	/* setup mips r4k timer */
+-	clk = clk_get(NULL, "cpu");
++	clk = clk_get(NULL, "cpu_clk");
+ 	if (IS_ERR(clk))
+ 		panic("unable to get cpu clock, err=%ld", PTR_ERR(clk));
+ 
+diff --git a/arch/mips/loongson1/common/irq.c b/arch/mips/loongson1/common/irq.c
+index 455a7704..ddb4847d 100644
+--- a/arch/mips/loongson1/common/irq.c
++++ b/arch/mips/loongson1/common/irq.c
+@@ -62,12 +62,65 @@ static void ls1x_irq_unmask(struct irq_data *d)
+ 			| (1 << bit), LS1X_INTC_INTIEN(n));
+ }
+ 
++static int ls1x_irq_settype(struct irq_data *d, unsigned int type)
++{
++	unsigned int bit = (d->irq - LS1X_IRQ_BASE) & 0x1f;
++	unsigned int n = (d->irq - LS1X_IRQ_BASE) >> 5;
++
++	switch (type) {
++	case IRQ_TYPE_LEVEL_HIGH:
++		__raw_writel(__raw_readl(LS1X_INTC_INTPOL(n))
++			| (1 << bit), LS1X_INTC_INTPOL(n));
++		__raw_writel(__raw_readl(LS1X_INTC_INTEDGE(n))
++			& ~(1 << bit), LS1X_INTC_INTEDGE(n));
++		break;
++	case IRQ_TYPE_LEVEL_LOW:
++		__raw_writel(__raw_readl(LS1X_INTC_INTPOL(n))
++			& ~(1 << bit), LS1X_INTC_INTPOL(n));
++		__raw_writel(__raw_readl(LS1X_INTC_INTEDGE(n))
++			& ~(1 << bit), LS1X_INTC_INTEDGE(n));
++		break;
++	case IRQ_TYPE_EDGE_RISING:
++		__raw_writel(__raw_readl(LS1X_INTC_INTPOL(n))
++			| (1 << bit), LS1X_INTC_INTPOL(n));
++		__raw_writel(__raw_readl(LS1X_INTC_INTEDGE(n))
++			| (1 << bit), LS1X_INTC_INTEDGE(n));
++		break;
++	case IRQ_TYPE_EDGE_FALLING:
++		__raw_writel(__raw_readl(LS1X_INTC_INTPOL(n))
++			& ~(1 << bit), LS1X_INTC_INTPOL(n));
++		__raw_writel(__raw_readl(LS1X_INTC_INTEDGE(n))
++			| (1 << bit), LS1X_INTC_INTEDGE(n));
++		break;
++	case IRQ_TYPE_EDGE_BOTH:
++		printk(KERN_WARNING "No edge_both irq type %d", type);
++		/*
++		* FIXME: Does Loongson1 will be triggered no mater
++		* rising edge or falling edge ??
++		*/
++		__raw_writel(__raw_readl(LS1X_INTC_INTPOL(n))
++			& ~(1 << bit), LS1X_INTC_INTPOL(n));
++		__raw_writel(__raw_readl(LS1X_INTC_INTEDGE(n))
++			| (1 << bit), LS1X_INTC_INTEDGE(n));
++		break;
++	case IRQ_TYPE_NONE:
++		printk(KERN_WARNING "No irq type setting!\n");
++		break;
++	default:
++		printk(KERN_ERR "No such irq type %d", type);
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
+ static struct irq_chip ls1x_irq_chip = {
+ 	.name		= "LS1X-INTC",
+ 	.irq_ack	= ls1x_irq_ack,
+ 	.irq_mask	= ls1x_irq_mask,
+ 	.irq_mask_ack	= ls1x_irq_mask_ack,
+ 	.irq_unmask	= ls1x_irq_unmask,
++	.irq_set_type	= ls1x_irq_settype,
+ };
+ 
+ static void ls1x_irq_dispatch(int n)
+@@ -120,7 +173,7 @@ static void __init ls1x_irq_init(int base)
+ 	/* Disable interrupts and clear pending,
+ 	 * setup all IRQs as high level triggered
+ 	 */
+-	for (n = 0; n < 4; n++) {
++	for (n = 0; n < INTN; n++) {
+ 		__raw_writel(0x0, LS1X_INTC_INTIEN(n));
+ 		__raw_writel(0xffffffff, LS1X_INTC_INTCLR(n));
+ 		__raw_writel(0xffffffff, LS1X_INTC_INTPOL(n));
+@@ -129,7 +182,7 @@ static void __init ls1x_irq_init(int base)
+ 	}
+ 
+ 
+-	for (n = base; n < LS1X_IRQS; n++) {
++	for (n = base; n < (MIPS_CPU_IRQS + LS1X_IRQS); n++) {
+ 		irq_set_chip_and_handler(n, &ls1x_irq_chip,
+ 					 handle_level_irq);
+ 	}
+@@ -138,6 +191,9 @@ static void __init ls1x_irq_init(int base)
+ 	setup_irq(INT1_IRQ, &cascade_irqaction);
+ 	setup_irq(INT2_IRQ, &cascade_irqaction);
+ 	setup_irq(INT3_IRQ, &cascade_irqaction);
++#if defined(CONFIG_LOONGSON1_LS1A) || defined(CONFIG_LOONGSON1_LS1C)
++	setup_irq(INT4_IRQ, &cascade_irqaction);
++#endif
+ }
+ 
+ void __init arch_init_irq(void)
+diff --git a/arch/mips/loongson1/common/platform.c b/arch/mips/loongson1/common/platform.c
+index fdf8cb59..33e96b87 100644
+--- a/arch/mips/loongson1/common/platform.c
++++ b/arch/mips/loongson1/common/platform.c
+@@ -13,7 +13,6 @@
+ #include <linux/phy.h>
+ #include <linux/serial_8250.h>
+ #include <linux/stmmac.h>
+-#include <linux/usb/ehci_pdriver.h>
+ #include <asm-generic/sizes.h>
+ 
+ #include <loongson1.h>
+@@ -27,15 +26,48 @@
+ 		.type		= PORT_16550A,			\
+ 	}
+ 
++#define LS1X_UART_SHARE(_id, _irq)						\
++	{							\
++		.mapbase	= LS1X_UART ## _id ## _BASE,	\
++		.irq		= LS1X_UART ## _irq ## _IRQ,	\
++		.iotype		= UPIO_MEM,			\
++		.flags		= UPF_IOREMAP | UPF_FIXED_TYPE | UPF_SHARE_IRQ,	\
++		.type		= PORT_16550A,			\
++	}
++
+ static struct plat_serial8250_port ls1x_serial8250_port[] = {
+ 	LS1X_UART(0),
+ 	LS1X_UART(1),
+ 	LS1X_UART(2),
+ 	LS1X_UART(3),
++#if defined(CONFIG_LOONGSON1_LS1B)
++	LS1X_UART(4),
++	LS1X_UART(5),
++#ifdef CONFIG_MULTIFUNC_CONFIG_SERAIL0
++	LS1X_UART_SHARE(6, 0),
++	LS1X_UART_SHARE(7, 0),
++	LS1X_UART_SHARE(8, 0),
++#endif
++#ifdef CONFIG_MULTIFUNC_CONFIG_SERAIL1
++	LS1X_UART_SHARE(9, 1),
++	LS1X_UART_SHARE(10, 1),
++	LS1X_UART_SHARE(11, 1),
++#endif
++
++#elif defined(CONFIG_LOONGSON1_LS1C300B)
++	LS1X_UART(4),
++	LS1X_UART(5),
++	LS1X_UART(6),
++	LS1X_UART(7),
++	LS1X_UART(8),
++	LS1X_UART(9),
++	LS1X_UART(10),
++	LS1X_UART(11),
++#endif
+ 	{},
+ };
+ 
+-struct platform_device ls1x_uart_device = {
++struct platform_device ls1x_uart_pdev = {
+ 	.name		= "serial8250",
+ 	.id		= PLAT8250_DEV_PLATFORM,
+ 	.dev		= {
+@@ -48,6 +80,15 @@ void __init ls1x_serial_setup(struct platform_device *pdev)
+ 	struct clk *clk;
+ 	struct plat_serial8250_port *p;
+ 
++#ifdef CONFIG_MULTIFUNC_CONFIG_SERAIL0
++	__raw_writeb(__raw_readb(UART_SPLIT) | 0x01, UART_SPLIT);
++#endif
++#ifdef CONFIG_MULTIFUNC_CONFIG_SERAIL1
++	__raw_writeb(__raw_readb(UART_SPLIT) | 0x02, UART_SPLIT);
++	__raw_writel(__raw_readl(LS1X_MUX_CTRL1) | UART1_3_USE_CAN1 | UART1_2_USE_CAN0,
++				LS1X_MUX_CTRL1);
++#endif
++
+ 	clk = clk_get(NULL, pdev->name);
+ 	if (IS_ERR(clk))
+ 		panic("unable to get %s clock, err=%ld",
+@@ -58,6 +99,129 @@ void __init ls1x_serial_setup(struct platform_device *pdev)
+ }
+ 
+ /* Synopsys Ethernet GMAC */
++#if defined(CONFIG_STMMAC_ETH)
++static struct stmmac_mdio_bus_data ls1x_mdio_bus_data = {
++	.phy_mask	= 0,
++};
++
++static struct stmmac_dma_cfg ls1x_eth_dma_cfg = {
++#if defined(CONFIG_LOONGSON1_LS1B)
++	.pbl		= 1,
++#else
++	.pbl		= 32,
++#endif
++};
++
++int ls1x_eth_mux_init(struct platform_device *pdev, void *priv)
++{
++	struct plat_stmmacenet_data *plat_dat = NULL;
++	u32 val;
++
++	val = __raw_readl(LS1X_MUX_CTRL1);
++
++#if defined(CONFIG_LOONGSON1_LS1A)
++	val = __raw_readl(LS1X_MUX_CTRL0);
++	plat_dat = dev_get_platdata(&pdev->dev);
++	if (plat_dat->bus_id) {
++		val |= (GMAC1_USE_UART1 | GMAC1_USE_UART0);
++		switch (plat_dat->interface) {
++		case PHY_INTERFACE_MODE_RGMII:
++			val = val & (~GMAC1_USE_TXCLK) & (~GMAC1_USE_PWM23);
++			break;
++		case PHY_INTERFACE_MODE_MII:
++			val = val | GMAC1_USE_TXCLK | GMAC1_USE_PWM23;
++			break;
++		default:
++			pr_err("unsupported mii mode %d\n",
++			       plat_dat->interface);
++			return -ENOTSUPP;
++		}
++		__raw_writel(val & (~GMAC1_SHUT), LS1X_MUX_CTRL0);
++	} else {
++		switch (plat_dat->interface) {
++		case PHY_INTERFACE_MODE_RGMII:
++			val = val & (~GMAC0_USE_TXCLK) & (~GMAC0_USE_PWM01);
++			break;
++		case PHY_INTERFACE_MODE_MII:
++			val = val | GMAC0_USE_TXCLK | GMAC0_USE_PWM01;
++			break;
++		default:
++			pr_err("unsupported mii mode %d\n",
++			       plat_dat->interface);
++			return -ENOTSUPP;
++		}
++		__raw_writel(val & (~GMAC0_SHUT), LS1X_MUX_CTRL0);
++	}
++#elif defined(CONFIG_LOONGSON1_LS1B)
++	plat_dat = dev_get_platdata(&pdev->dev);
++	if (plat_dat->bus_id) {
++		__raw_writel(__raw_readl(LS1X_MUX_CTRL0) | GMAC1_USE_UART1 |
++			     GMAC1_USE_UART0, LS1X_MUX_CTRL0);
++		switch (plat_dat->interface) {
++		case PHY_INTERFACE_MODE_RGMII:
++			val &= ~(GMAC1_USE_TXCLK | GMAC1_USE_PWM23);
++			break;
++		case PHY_INTERFACE_MODE_MII:
++			val |= (GMAC1_USE_TXCLK | GMAC1_USE_PWM23);
++			break;
++		default:
++			pr_err("unsupported mii mode %d\n",
++			       plat_dat->interface);
++			return -ENOTSUPP;
++		}
++		val &= ~GMAC1_SHUT;
++	} else {
++		switch (plat_dat->interface) {
++		case PHY_INTERFACE_MODE_RGMII:
++			val &= ~(GMAC0_USE_TXCLK | GMAC0_USE_PWM01);
++			break;
++		case PHY_INTERFACE_MODE_MII:
++			val |= (GMAC0_USE_TXCLK | GMAC0_USE_PWM01);
++			break;
++		default:
++			pr_err("unsupported mii mode %d\n",
++			       plat_dat->interface);
++			return -ENOTSUPP;
++		}
++		val &= ~GMAC0_SHUT;
++	}
++	__raw_writel(val, LS1X_MUX_CTRL1);
++
++#elif defined(CONFIG_LOONGSON1_LS1C)
++	plat_dat = dev_get_platdata(&pdev->dev);
++
++	val &= ~PHY_INTF_SELI;
++	#if defined(CONFIG_LS1X_GMAC0_RMII)
++	val |= 0x4 << PHY_INTF_SELI_SHIFT;
++	#endif
++	__raw_writel(val, LS1X_MUX_CTRL1);
++
++	val = __raw_readl(LS1X_MUX_CTRL0);
++	__raw_writel(val & (~GMAC_SHUT), LS1X_MUX_CTRL0);
++#endif
++
++	return 0;
++}
++#endif
++
++#if defined(CONFIG_LS1X_GMAC0)
++static struct plat_stmmacenet_data ls1x_eth0_pdata = {
++	.bus_id		= 0,
++	.phy_addr	= -1,
++#if defined(CONFIG_LOONGSON1_LS1A)
++	.interface	= PHY_INTERFACE_MODE_RGMII,
++#elif defined(CONFIG_LOONGSON1_LS1B)
++	.interface	= PHY_INTERFACE_MODE_MII,
++#elif defined(CONFIG_LOONGSON1_LS1C)
++	.interface	= PHY_INTERFACE_MODE_RMII,
++#endif
++	.mdio_bus_data	= &ls1x_mdio_bus_data,
++	.dma_cfg	= &ls1x_eth_dma_cfg,
++	.has_gmac	= 1,
++	.tx_coe		= 1,
++	.init		= ls1x_eth_mux_init,
++};
++
+ static struct resource ls1x_eth0_resources[] = {
+ 	[0] = {
+ 		.start	= LS1X_GMAC0_BASE,
+@@ -71,29 +235,87 @@ static struct resource ls1x_eth0_resources[] = {
+ 	},
+ };
+ 
+-static struct stmmac_mdio_bus_data ls1x_mdio_bus_data = {
+-	.phy_mask	= 0,
++struct platform_device ls1x_eth0_pdev = {
++	.name		= "stmmaceth",
++	.id		= 0,
++	.num_resources	= ARRAY_SIZE(ls1x_eth0_resources),
++	.resource	= ls1x_eth0_resources,
++	.dev		= {
++		.platform_data = &ls1x_eth0_pdata,
++	},
+ };
++#endif
+ 
+-static struct plat_stmmacenet_data ls1x_eth_data = {
+-	.bus_id		= 0,
++#if defined(CONFIG_LS1X_GMAC1)
++static struct plat_stmmacenet_data ls1x_eth1_pdata = {
++	.bus_id		= 1,
+ 	.phy_addr	= -1,
+ 	.mdio_bus_data	= &ls1x_mdio_bus_data,
++	.dma_cfg	= &ls1x_eth_dma_cfg,
+ 	.has_gmac	= 1,
+ 	.tx_coe		= 1,
++	.init		= ls1x_eth_mux_init,
+ };
+ 
+-struct platform_device ls1x_eth0_device = {
++static struct resource ls1x_eth1_resources[] = {
++	[0] = {
++		.start	= LS1X_GMAC1_BASE,
++		.end	= LS1X_GMAC1_BASE + SZ_64K - 1,
++		.flags	= IORESOURCE_MEM,
++	},
++	[1] = {
++		.name	= "macirq",
++		.start	= LS1X_GMAC1_IRQ,
++		.flags	= IORESOURCE_IRQ,
++	},
++};
++
++struct platform_device ls1x_eth1_pdev = {
+ 	.name		= "stmmaceth",
+-	.id		= 0,
+-	.num_resources	= ARRAY_SIZE(ls1x_eth0_resources),
+-	.resource	= ls1x_eth0_resources,
++	.id		= 1,
++	.num_resources	= ARRAY_SIZE(ls1x_eth1_resources),
++	.resource	= ls1x_eth1_resources,
+ 	.dev		= {
+-		.platform_data = &ls1x_eth_data,
++		.platform_data = &ls1x_eth1_pdata,
+ 	},
+ };
++#endif
++
++/* USB OHCI */
++#ifdef CONFIG_USB_OHCI_HCD_PLATFORM
++#include <linux/usb/ohci_pdriver.h>
++static u64 ls1x_ohci_dmamask = DMA_BIT_MASK(32);
++
++static struct resource ls1x_ohci_resources[] = {
++	[0] = {
++		.start	= LS1X_OHCI_BASE,
++		.end	= LS1X_OHCI_BASE + SZ_32K - 1,
++		.flags	= IORESOURCE_MEM,
++	},
++	[1] = {
++		.start	= LS1X_OHCI_IRQ,
++		.flags	= IORESOURCE_IRQ,
++	},
++};
++
++static struct usb_ohci_pdata ls1x_ohci_pdata = {
++};
++
++struct platform_device ls1x_ohci_pdev = {
++	.name		= "ohci-platform",
++	.id		= -1,
++	.num_resources	= ARRAY_SIZE(ls1x_ohci_resources),
++	.resource	= ls1x_ohci_resources,
++	.dev		= {
++		.dma_mask = &ls1x_ohci_dmamask,
++		.platform_data = &ls1x_ohci_pdata,
++	},
++};
++#endif
+ 
+ /* USB EHCI */
++#ifdef CONFIG_USB_EHCI_HCD_PLATFORM
++#include <linux/usb/ehci_pdriver.h>
+ static u64 ls1x_ehci_dmamask = DMA_BIT_MASK(32);
+ 
+ static struct resource ls1x_ehci_resources[] = {
+@@ -111,7 +333,7 @@ static struct resource ls1x_ehci_resources[] = {
+ static struct usb_ehci_pdata ls1x_ehci_pdata = {
+ };
+ 
+-struct platform_device ls1x_ehci_device = {
++struct platform_device ls1x_ehci_pdev = {
+ 	.name		= "ehci-platform",
+ 	.id		= -1,
+ 	.num_resources	= ARRAY_SIZE(ls1x_ehci_resources),
+@@ -121,9 +343,213 @@ struct platform_device ls1x_ehci_device = {
+ 		.platform_data = &ls1x_ehci_pdata,
+ 	},
+ };
++#endif
+ 
+ /* Real Time Clock */
+-struct platform_device ls1x_rtc_device = {
+-	.name		= "ls1x-rtc",
++#ifdef CONFIG_RTC_DRV_RTC_LOONGSON1
++static struct resource ls1x_rtc_resource[] = {
++	[0] = {
++		.start      = LS1X_RTC_BASE,
++		.end        = LS1X_RTC_BASE + SZ_16K - 1,
++		.flags      = IORESOURCE_MEM,
++	},
++	[1] = {
++		.start      = LS1X_RTC_INT0_IRQ,
++		.end        = LS1X_RTC_INT0_IRQ,
++		.flags      = IORESOURCE_IRQ,
++	},
++	[2] = {
++		.start      = LS1X_RTC_INT1_IRQ,
++		.end        = LS1X_RTC_INT1_IRQ,
++		.flags      = IORESOURCE_IRQ,
++	},
++	[3] = {
++		.start      = LS1X_RTC_INT2_IRQ,
++		.end        = LS1X_RTC_INT2_IRQ,
++		.flags      = IORESOURCE_IRQ,
++	},
++	[4] = {
++		.start      = LS1X_RTC_TICK_IRQ,
++		.end        = LS1X_RTC_TICK_IRQ,
++		.flags      = IORESOURCE_IRQ,
++	},
++};
++
++struct platform_device ls1x_rtc_pdev = {
++	.name       = "ls1x-rtc",
++	.id         = 0,
++	.num_resources  = ARRAY_SIZE(ls1x_rtc_resource),
++	.resource   = ls1x_rtc_resource,
++};
++#endif //#ifdef CONFIG_RTC_DRV_RTC_LOONGSON1
++
++#ifdef CONFIG_RTC_DRV_TOY_LOONGSON1
++struct platform_device ls1x_toy_pdev = {
++	.name		= "ls1x-toy",
++	.id		= 1,
++};
++#endif
++
++#ifdef CONFIG_RTC_DRV_TOY_LOONGSON1CV2
++struct platform_device ls1x_toy_pdev = {
++	.name		= "ls1x-toy",
++	.id		= 0,
++};
++#endif
++
++#ifdef CONFIG_LS1X_WDT
++static struct resource ls1x_wdt_resource[] = {
++	[0] = {
++		.start      = LS1X_WDT_BASE,
++#if defined(CONFIG_LOONGSON1_LS1A)
++		.end        = LS1X_WDT_BASE + 8,
++#else
++		.end        = LS1X_WDT_BASE + SZ_1K - 1,
++#endif
++		.flags      = IORESOURCE_MEM,
++	},
++};
++
++struct platform_device ls1x_wdt_pdev = {
++	.name       = "ls1x-wdt",
++	.id         = -1,
++	.num_resources  = ARRAY_SIZE(ls1x_wdt_resource),
++	.resource   = ls1x_wdt_resource,
++};
++#endif //#ifdef CONFIG_LS1X_WDT
++
++#ifdef CONFIG_MTD_NAND_LS1X
++#include <ls1x_nand.h>
++extern struct ls1x_nand_platform_data ls1x_nand_parts;
++static struct resource ls1x_nand_resources[] = {
++	[0] = {
++		.start	= LS1X_NAND_BASE,
++//		.end	= LS1X_NAND_BASE + SZ_16K - 1,
++		.end	= LS1X_NAND_BASE + 0x30 - 1,
++		.flags	= IORESOURCE_MEM,
++	},
++	[1] = {
++		.start	= LS1X_DMA0_IRQ,
++		.end	= LS1X_DMA0_IRQ,
++		.flags	= IORESOURCE_IRQ,
++	},
++};
++
++struct platform_device ls1x_nand_pdev = {
++	.name	= "ls1x-nand",
+ 	.id		= -1,
++	.dev	= {
++		.platform_data = &ls1x_nand_parts,
++	},
++	.num_resources	= ARRAY_SIZE(ls1x_nand_resources),
++	.resource		= ls1x_nand_resources,
++};
++#endif //CONFIG_MTD_NAND_LS1X
++
++#ifdef CONFIG_SPI_LS1X_SPI0
++#include <linux/spi/spi_ls1x.h>
++static struct resource ls1x_spi0_resource[] = {
++	[0] = {
++		.start	= LS1X_SPI0_BASE,
++		.end	= LS1X_SPI0_BASE + SZ_16K - 1,
++		.flags	= IORESOURCE_MEM,
++	},
++#if defined(CONFIG_SPI_IRQ_MODE)
++	[1] = {
++		.start	= LS1X_SPI0_IRQ,
++		.end	= LS1X_SPI0_IRQ,
++		.flags	= IORESOURCE_IRQ,
++	},
++#endif
++};
++
++extern struct ls1x_spi_platform_data ls1x_spi0_platdata;
++
++struct platform_device ls1x_spi0_pdev = {
++	.name		= "spi_ls1x",
++	.id 		= 0,
++	.num_resources	= ARRAY_SIZE(ls1x_spi0_resource),
++	.resource	= ls1x_spi0_resource,
++	.dev		= {
++		.platform_data	= &ls1x_spi0_platdata,
++	},
++};
++#endif
++
++#ifdef CONFIG_SPI_LS1X_SPI1
++#include <linux/spi/spi_ls1x.h>
++static struct resource ls1x_spi1_resource[] = {
++	[0] = {
++		.start	= LS1X_SPI1_BASE,
++		.end	= LS1X_SPI1_BASE + SZ_16K - 1,
++		.flags	= IORESOURCE_MEM,
++	},
++#if defined(CONFIG_SPI_IRQ_MODE)
++	[1] = {
++		.start	= LS1X_SPI1_IRQ,
++		.end	= LS1X_SPI1_IRQ,
++		.flags	= IORESOURCE_IRQ,
++	},
++#endif
++};
++
++extern struct ls1x_spi_platform_data ls1x_spi1_platdata;
++
++struct platform_device ls1x_spi1_pdev = {
++	.name		= "spi_ls1x",
++	.id 		= 1,
++	.num_resources	= ARRAY_SIZE(ls1x_spi1_resource),
++	.resource	= ls1x_spi1_resource,
++	.dev		= {
++		.platform_data	= &ls1x_spi1_platdata,
++	},
++};
++#endif
++
++#ifdef CONFIG_USB_DWC2
++#include <linux/platform_data/s3c-hsotg.h>
++static int ls1x_otg_phy_init(struct platform_device *pdev, int type)
++{
++	return 0;
++}
++
++static int ls1x_otg_phy_exit(struct platform_device *pdev, int type)
++{
++	return 0;
++}
++
++static struct s3c_hsotg_plat ls1x_otg_platform_data = {
++	.dma = S3C_HSOTG_DMA_NONE,
++	.is_osc = 1,
++	.phy_type = 1,
++	.phy_init = &ls1x_otg_phy_init,
++	.phy_exit = &ls1x_otg_phy_exit,
++};
++
++static struct resource ls1x_otg_resources[] = {
++	[0] = {
++		.start	= LS1X_OTG_BASE,
++		.end	= LS1X_OTG_BASE + SZ_64K - 1,
++		.flags	= IORESOURCE_MEM,
++	},
++	[1] = {
++		.start	= LS1X_OTG_IRQ,
++        .end	= LS1X_OTG_IRQ,
++		.flags	= IORESOURCE_IRQ,
++	},
++};
++
++static u64 ls1x_otg_dmamask = DMA_BIT_MASK(32);
++
++struct platform_device ls1x_otg_pdev = {
++	.name		= "dwc2",
++	.id			= -1,
++	.num_resources	= ARRAY_SIZE(ls1x_otg_resources),
++	.resource	= ls1x_otg_resources,
++	.dev		= {
++		.dma_mask		= &ls1x_otg_dmamask,
++		.coherent_dma_mask	= DMA_BIT_MASK(32),
++		.platform_data = &ls1x_otg_platform_data,
++	},
+ };
++#endif
+diff --git a/arch/mips/loongson1/common/prom.c b/arch/mips/loongson1/common/prom.c
+index 2a47af5a..110ee896 100644
+--- a/arch/mips/loongson1/common/prom.c
++++ b/arch/mips/loongson1/common/prom.c
+@@ -10,11 +10,17 @@
+  */
+ 
+ #include <linux/serial_reg.h>
++#include <linux/delay.h>
++#include <linux/ctype.h>
++
+ #include <asm/bootinfo.h>
+ 
+ #include <loongson1.h>
+ #include <prom.h>
+ 
++unsigned long ls1x_osc_clk;
++EXPORT_SYMBOL(ls1x_osc_clk);
++
+ int prom_argc;
+ char **prom_argv, **prom_envp;
+ unsigned long memsize, highmemsize;
+@@ -57,20 +63,48 @@ void __init prom_init_cmdline(void)
+ 
+ void __init prom_init(void)
+ {
++	void __iomem *uart_base;
+ 	prom_argc = fw_arg0;
+ 	prom_argv = (char **)fw_arg1;
+ 	prom_envp = (char **)fw_arg2;
+ 
++#if defined(CONFIG_LOONGSON1_LS1C)
++	__raw_writel(__raw_readl(LS1X_MUX_CTRL0) & (~USBHOST_SHUT), LS1X_MUX_CTRL0);
++	__raw_writel(__raw_readl(LS1X_MUX_CTRL1) & (~USBHOST_RSTN), LS1X_MUX_CTRL1);
++	mdelay(60);
++	/* reset stop */
++	__raw_writel(__raw_readl(LS1X_MUX_CTRL1) | USBHOST_RSTN, LS1X_MUX_CTRL1);
++#endif
+ 	prom_init_cmdline();
+ 
++	ls1x_osc_clk = env_or_default("osc_clk", OSC);
+ 	memsize = env_or_default("memsize", DEFAULT_MEMSIZE);
+ 	highmemsize = env_or_default("highmemsize", 0x0);
++
++	if (strstr(arcs_cmdline, "console=ttyS5"))
++	#if defined(CONFIG_LOONGSON1_LS1B) || defined(CONFIG_LOONGSON1_LS1C)
++		uart_base = ioremap_nocache(LS1X_UART5_BASE, 0x0f);
++	#else
++		uart_base = ioremap_nocache(LS1X_UART0_BASE, 0x0f);
++	#endif
++	else if (strstr(arcs_cmdline, "console=ttyS3"))
++		uart_base = ioremap_nocache(LS1X_UART3_BASE, 0x0f);
++	else if (strstr(arcs_cmdline, "console=ttyS2"))
++		uart_base = ioremap_nocache(LS1X_UART2_BASE, 0x0f);
++	else if (strstr(arcs_cmdline, "console=ttyS1"))
++		uart_base = ioremap_nocache(LS1X_UART1_BASE, 0x0f);
++	else
++		uart_base = ioremap_nocache(LS1X_UART0_BASE, 0x0f);
++	setup_8250_early_printk_port((unsigned long)uart_base, 0, 0);
++
++	pr_info("memsize=%ldMB, highmemsize=%ldMB\n", memsize, highmemsize);
+ }
+ 
+ void __init prom_free_prom_memory(void)
+ {
+ }
+ 
++#ifndef CONFIG_EARLY_PRINTK_8250
+ #define PORT(offset)	(u8 *)(KSEG1ADDR(LS1X_UART0_BASE + offset))
+ 
+ void prom_putchar(char c)
+@@ -85,3 +119,4 @@ void prom_putchar(char c)
+ 
+ 	writeb(c, PORT(UART_TX));
+ }
++#endif /* CONFIG_EARLY_PRINTK_8250 */
+diff --git a/arch/mips/loongson1/common/reset.c b/arch/mips/loongson1/common/reset.c
+index 547f34b6..c41e4ca5 100644
+--- a/arch/mips/loongson1/common/reset.c
++++ b/arch/mips/loongson1/common/reset.c
+@@ -14,12 +14,7 @@
+ 
+ #include <loongson1.h>
+ 
+-static void ls1x_restart(char *command)
+-{
+-	__raw_writel(0x1, LS1X_WDT_EN);
+-	__raw_writel(0x5000000, LS1X_WDT_TIMER);
+-	__raw_writel(0x1, LS1X_WDT_SET);
+-}
++static void __iomem *wdt_base;
+ 
+ static void ls1x_halt(void)
+ {
+@@ -29,6 +24,15 @@ static void ls1x_halt(void)
+ 	}
+ }
+ 
++static void ls1x_restart(char *command)
++{
++	__raw_writel(0x1, wdt_base + WDT_EN);
++	__raw_writel(0x1, wdt_base + WDT_TIMER);
++	__raw_writel(0x1, wdt_base + WDT_SET);
++
++	ls1x_halt();
++}
++
+ static void ls1x_power_off(void)
+ {
+ 	ls1x_halt();
+@@ -36,6 +40,10 @@ static void ls1x_power_off(void)
+ 
+ static int __init ls1x_reboot_setup(void)
+ {
++	wdt_base = ioremap_nocache(LS1X_WDT_BASE, 0x0f);
++	if (!wdt_base)
++		panic("Failed to remap watchdog registers");
++
+ 	_machine_restart = ls1x_restart;
+ 	_machine_halt = ls1x_halt;
+ 	pm_power_off = ls1x_power_off;
+diff --git a/arch/mips/loongson1/common/setup.c b/arch/mips/loongson1/common/setup.c
+index 62f41afe..ff83a46d 100644
+--- a/arch/mips/loongson1/common/setup.c
++++ b/arch/mips/loongson1/common/setup.c
+@@ -22,8 +22,16 @@ const char *get_system_type(void)
+ 
+ 	switch (processor_id & PRID_REV_MASK) {
+ 	case PRID_REV_LOONGSON1B:
++	#if defined(CONFIG_LOONGSON1_LS1A)
++		return "LOONGSON LS1A";
++	#elif defined(CONFIG_LOONGSON1_LS1B)
+ 		return "LOONGSON LS1B";
++	#elif defined(CONFIG_LOONGSON1_LS1C)
++		return "LOONGSON LS1C";
++	#endif
+ 	default:
+ 		return "LOONGSON (unknown)";
+ 	}
+ }
++
++void device_tree_init(void) { }
+-- 
+2.17.0
+

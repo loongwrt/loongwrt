@@ -1,0 +1,80 @@
+From 3608dba69a328a74a8645116436a81c90d90b6cb Mon Sep 17 00:00:00 2001
+From: Rosy Song <rosysong@rosinson.com>
+Date: Sun, 2 Dec 2018 15:54:55 +0800
+Subject: [PATCH 8/9] ethernet: initial support for loongson1
+
+Signed-off-by: Rosy Song <rosysong@rosinson.com>
+---
+ drivers/net/ethernet/stmicro/stmmac/Kconfig | 19 +++++++++++++++++
+ drivers/net/phy/realtek.c                   | 23 +++++++++++++++++++++
+ 2 files changed, 42 insertions(+)
+
+diff --git a/drivers/net/ethernet/stmicro/stmmac/Kconfig b/drivers/net/ethernet/stmicro/stmmac/Kconfig
+index b02d4a3f..3ea23bb9 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/Kconfig
++++ b/drivers/net/ethernet/stmicro/stmmac/Kconfig
+@@ -13,6 +13,25 @@ config STMMAC_ETH
+ 
+ if STMMAC_ETH
+ 
++config LS1X_GMAC0
++	bool "Loongson1 GMAC0 support"
++	default y
++	depends on LOONGSON1_LS1A || LOONGSON1_LS1B || LOONGSON1_LS1C
++
++choice
++	prompt "ls1x gmac0 config"
++	depends on LS1X_GMAC0 && LOONGSON1_LS1C
++
++config LS1X_GMAC0_RMII
++	bool "100Mb RMII mode"
++	depends on LOONGSON1_LS1C
++endchoice
++
++config LS1X_GMAC1
++	bool "Loongson1 GMAC1 support"
++	default n
++	depends on LOONGSON1_LS1A || LOONGSON1_LS1B
++
+ config STMMAC_PLATFORM
+ 	bool "STMMAC Platform bus support"
+ 	depends on STMMAC_ETH
+diff --git a/drivers/net/phy/realtek.c b/drivers/net/phy/realtek.c
+index 45483fdf..ddfca04d 100644
+--- a/drivers/net/phy/realtek.c
++++ b/drivers/net/phy/realtek.c
+@@ -64,8 +64,31 @@ static int rtl8211e_config_intr(struct phy_device *phydev)
+ 	return err;
+ }
+ 
++static int rtl8201el_config_init(struct phy_device *phydev)
++{
++	int err = 0;
++
++	/* Set NO. 25 register, enable RMII mode */
++#ifdef CONFIG_LS1X_GMAC0_RMII
++	err = phy_write(phydev, 25, 0x0400);
++#endif /* CONFIG_LS1X_GMAC0_RMII */
++
++	return err;
++}
++
+ static struct phy_driver realtek_drvs[] = {
+ 	{
++		.phy_id         = 0x001cc815,
++		.name           = "RTL8201EL Ethernet",
++		.phy_id_mask    = 0x001fffff,
++		.features       = PHY_BASIC_FEATURES,
++		.flags          = PHY_HAS_INTERRUPT,
++		.soft_reset     = &genphy_soft_reset,
++		.config_init    = &rtl8201el_config_init,
++		.config_aneg    = &genphy_config_aneg,
++		.read_status    = &genphy_read_status,
++		.driver         = { .owner = THIS_MODULE,},
++	}, {
+ 		.phy_id         = 0x00008201,
+ 		.name           = "RTL8201CP Ethernet",
+ 		.phy_id_mask    = 0x0000ffff,
+-- 
+2.17.0
+

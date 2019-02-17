@@ -1,0 +1,43 @@
+From 9f2598f6b310196bfeb7f43407873f54d66239e7 Mon Sep 17 00:00:00 2001
+From: Rosy Song <rosysong@rosinson.com>
+Date: Sun, 2 Dec 2018 15:51:54 +0800
+Subject: [PATCH 3/9] gpio: initial support for loongson1
+
+Signed-off-by: Rosy Song <rosysong@rosinson.com>
+---
+ drivers/gpio/Kconfig  | 6 ++++++
+ drivers/gpio/Makefile | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/drivers/gpio/Kconfig b/drivers/gpio/Kconfig
+index 929b680d..5542658a 100644
+--- a/drivers/gpio/Kconfig
++++ b/drivers/gpio/Kconfig
+@@ -147,6 +147,12 @@ config GPIO_IT8761E
+ 	help
+ 	  Say yes here to support GPIO functionality of IT8761E super I/O chip.
+ 
++config GPIO_LOONGSON1
++	bool "Loongson-1 GPIO support"
++	depends on CPU_LOONGSON1
++	help
++	  driver for GPIO functionality on Loongson-1A/1B/1C processors.
++
+ config GPIO_EM
+ 	tristate "Emma Mobile GPIO"
+ 	depends on ARM && OF_GPIO
+diff --git a/drivers/gpio/Makefile b/drivers/gpio/Makefile
+index e5d346cf..cb38ccc6 100644
+--- a/drivers/gpio/Makefile
++++ b/drivers/gpio/Makefile
+@@ -39,6 +39,7 @@ obj-$(CONFIG_GPIO_JANZ_TTL)	+= gpio-janz-ttl.o
+ obj-$(CONFIG_GPIO_KEMPLD)	+= gpio-kempld.o
+ obj-$(CONFIG_ARCH_KS8695)	+= gpio-ks8695.o
+ obj-$(CONFIG_GPIO_INTEL_MID)	+= gpio-intel-mid.o
++obj-$(CONFIG_GPIO_LOONGSON1)	+= gpio-loongson1.o
+ obj-$(CONFIG_GPIO_LP3943)	+= gpio-lp3943.o
+ obj-$(CONFIG_ARCH_LPC32XX)	+= gpio-lpc32xx.o
+ obj-$(CONFIG_GPIO_LYNXPOINT)	+= gpio-lynxpoint.o
+-- 
+2.17.0
+

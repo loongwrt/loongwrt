@@ -1,0 +1,101 @@
+From 64ee15dcf47dacafca1318d02af64adbb7abcd1c Mon Sep 17 00:00:00 2001
+From: Rosy Song <rosysong@rosinson.com>
+Date: Sun, 2 Dec 2018 15:52:19 +0800
+Subject: [PATCH 5/9] spi: initial support for loongson1
+
+Signed-off-by: Rosy Song <rosysong@rosinson.com>
+---
+ drivers/spi/Kconfig  | 48 ++++++++++++++++++++++++++++++++++++++++++++
+ drivers/spi/Makefile |  1 +
+ drivers/spi/spi.c    |  2 ++
+ 3 files changed, 51 insertions(+)
+
+diff --git a/drivers/spi/Kconfig b/drivers/spi/Kconfig
+index 84e7c9e6..0215e0d7 100644
+--- a/drivers/spi/Kconfig
++++ b/drivers/spi/Kconfig
+@@ -308,6 +308,54 @@ config SPI_OC_TINY
+ 	help
+ 	  This is the driver for OpenCores tiny SPI master controller.
+ 
++config SPI_LS1X
++	tristate "Loongson1 SPI"
++	depends on GPIOLIB && MACH_LOONGSON1
++	select SPI_BITBANG
++	help
++	  This is the driver for Loongson1 SPI master controller.
++
++if SPI_LS1X
++
++config SPI_LS1X_SPI0
++	bool "Loongson1 spi0 support"
++	default y
++	depends on SPI_LS1X
++
++config SPI_LS1X_SPI1
++	bool "Loongson1 spi1 support"
++	default n
++	depends on SPI_LS1X
++
++choice
++	prompt  "ls1x spi cs mode"
++	depends on SPI_LS1X
++	default SPI_CS
++
++config SPI_CS_USED_GPIO
++	bool "gpio mode"
++
++config SPI_CS
++	bool "softcs mode"
++endchoice
++
++choice
++	prompt  "ls1x spi control mode"
++	depends on SPI_LS1X
++	default SPI_POLL_MODE
++	help
++	  For performace issue, at sclk > 200KHz, interrupt should not be used and 
++	  polling will get better result.
++
++config SPI_POLL_MODE
++	bool "poll mode"
++
++config SPI_IRQ_MODE
++	bool "irq mode"
++endchoice
++
++endif
++
+ config SPI_OCTEON
+ 	tristate "Cavium OCTEON SPI controller"
+ 	depends on CAVIUM_OCTEON_SOC
+diff --git a/drivers/spi/Makefile b/drivers/spi/Makefile
+index 78f24ca3..46741f08 100644
+--- a/drivers/spi/Makefile
++++ b/drivers/spi/Makefile
+@@ -48,6 +48,7 @@ obj-$(CONFIG_SPI_MPC52xx)		+= spi-mpc52xx.o
+ obj-$(CONFIG_SPI_MXS)			+= spi-mxs.o
+ obj-$(CONFIG_SPI_NUC900)		+= spi-nuc900.o
+ obj-$(CONFIG_SPI_OC_TINY)		+= spi-oc-tiny.o
++obj-$(CONFIG_SPI_LS1X) 			+= spi_ls1x.o
+ obj-$(CONFIG_SPI_OCTEON)		+= spi-octeon.o
+ obj-$(CONFIG_SPI_OMAP_UWIRE)		+= spi-omap-uwire.o
+ obj-$(CONFIG_SPI_OMAP_100K)		+= spi-omap-100k.o
+diff --git a/drivers/spi/spi.c b/drivers/spi/spi.c
+index 85a6da81..48c5eac5 100644
+--- a/drivers/spi/spi.c
++++ b/drivers/spi/spi.c
+@@ -1828,8 +1828,10 @@ int spi_setup(struct spi_device *spi)
+ 		bad_bits &= ~ugly_bits;
+ 	}
+ 	if (bad_bits) {
++#ifndef CONFIG_CPU_LOONGSON1C
+ 		dev_err(&spi->dev, "setup: unsupported mode bits %x\n",
+ 			bad_bits);
++#endif
+ 		return -EINVAL;
+ 	}
+ 
+-- 
+2.17.0
+

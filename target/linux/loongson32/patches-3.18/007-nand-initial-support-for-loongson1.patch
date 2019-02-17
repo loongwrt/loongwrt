@@ -1,0 +1,56 @@
+From 8bcd53381c2569427333897bfff6544f18553e45 Mon Sep 17 00:00:00 2001
+From: Rosy Song <rosysong@rosinson.com>
+Date: Sun, 2 Dec 2018 15:52:09 +0800
+Subject: [PATCH 4/9] nand: initial support for loongson1
+
+Signed-off-by: Rosy Song <rosysong@rosinson.com>
+---
+ drivers/mtd/nand/Kconfig  | 19 +++++++++++++++++++
+ drivers/mtd/nand/Makefile |  1 +
+ 2 files changed, 20 insertions(+)
+
+diff --git a/drivers/mtd/nand/Kconfig b/drivers/mtd/nand/Kconfig
+index dd106469..210ed006 100644
+--- a/drivers/mtd/nand/Kconfig
++++ b/drivers/mtd/nand/Kconfig
+@@ -501,6 +501,25 @@ config MTD_NAND_JZ4740
+ 	help
+ 		Enables support for NAND Flash on JZ4740 SoC based boards.
+ 
++config MTD_NAND_LS1X
++	tristate "Support for NAND flash devices on Loongson1"
++	depends on MTD_NAND && MACH_LOONGSON1
++	help
++	  Enables support for NAND Flash on Loongson 1x based boards.
++
++choice
++	prompt "Multiplexing selection for LS1A"
++	depends on MTD_NAND_LS1X && LOONGSON1_LS1A
++	default NAND_USE_SPI1_PWM23
++
++config NAND_USE_LPC_PWM01
++	bool "nand d0-d5 use LCP and pwm01"
++
++config NAND_USE_SPI1_PWM23
++	bool "nand d0-d5 use SPI1 and pwm23"
++
++endchoice
++
+ config MTD_NAND_FSMC
+ 	tristate "Support for NAND on ST Micros FSMC"
+ 	depends on PLAT_SPEAR || ARCH_NOMADIK || ARCH_U8500 || MACH_U300
+diff --git a/drivers/mtd/nand/Makefile b/drivers/mtd/nand/Makefile
+index 9c847e46..1f67036d 100644
+--- a/drivers/mtd/nand/Makefile
++++ b/drivers/mtd/nand/Makefile
+@@ -47,6 +47,7 @@ obj-$(CONFIG_MTD_NAND_NUC900)		+= nuc900_nand.o
+ obj-$(CONFIG_MTD_NAND_MPC5121_NFC)	+= mpc5121_nfc.o
+ obj-$(CONFIG_MTD_NAND_RICOH)		+= r852.o
+ obj-$(CONFIG_MTD_NAND_JZ4740)		+= jz4740_nand.o
++obj-$(CONFIG_MTD_NAND_LS1X)		+= ls1x-nand.o
+ obj-$(CONFIG_MTD_NAND_GPMI_NAND)	+= gpmi-nand/
+ obj-$(CONFIG_MTD_NAND_XWAY)		+= xway_nand.o
+ obj-$(CONFIG_MTD_NAND_BCM47XXNFLASH)	+= bcm47xxnflash/
+-- 
+2.17.0
+

@@ -1,0 +1,44 @@
+From 77fff81617f265c20e4e20c2736fa24fc828a0d1 Mon Sep 17 00:00:00 2001
+From: Rosy Song <rosysong@rosinson.com>
+Date: Sun, 2 Dec 2018 15:55:08 +0800
+Subject: [PATCH 9/9] watchdog: initial support for loongson1
+
+Signed-off-by: Rosy Song <rosysong@rosinson.com>
+---
+ drivers/watchdog/Kconfig  | 7 +++++++
+ drivers/watchdog/Makefile | 1 +
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/watchdog/Kconfig b/drivers/watchdog/Kconfig
+index d0107d42..2406613a 100644
+--- a/drivers/watchdog/Kconfig
++++ b/drivers/watchdog/Kconfig
+@@ -1092,6 +1092,13 @@ config M54xx_WATCHDOG
+ 
+ # MIPS Architecture
+ 
++config LS1X_WDT
++	tristate "Loongson1 watchdog timer"
++	depends on MACH_LOONGSON1
++	help
++	  Hardware driver for the built-in watchdog timer on the Loongson1
++	  SoCs.
++
+ config ATH79_WDT
+ 	tristate "Atheros AR71XX/AR724X/AR913X hardware watchdog"
+ 	depends on ATH79
+diff --git a/drivers/watchdog/Makefile b/drivers/watchdog/Makefile
+index c569ec8f..870ab4c0 100644
+--- a/drivers/watchdog/Makefile
++++ b/drivers/watchdog/Makefile
+@@ -127,6 +127,7 @@ obj-$(CONFIG_M54xx_WATCHDOG) += m54xx_wdt.o
+ obj-$(CONFIG_XILINX_WATCHDOG) += of_xilinx_wdt.o
+ 
+ # MIPS Architecture
++obj-$(CONFIG_LS1X_WDT) += ls1x_wdt.o
+ obj-$(CONFIG_ATH79_WDT) += ath79_wdt.o
+ obj-$(CONFIG_BCM47XX_WDT) += bcm47xx_wdt.o
+ obj-$(CONFIG_BCM63XX_WDT) += bcm63xx_wdt.o
+-- 
+2.17.0
+
