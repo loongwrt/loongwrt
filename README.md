@@ -10,6 +10,7 @@
 
     bootloader : 采用PMON
     openwrt : master分支
+    loongwrt : loongson32-3.18 可以理解该分支为稳定版
 
     存在的问题: 内核版本过旧, 没有u-boot支持
 
@@ -17,6 +18,7 @@
 
     bootloader : 采用PMON
     openwrt : master分支
+    loongwrt : master 可以理解该分支为开发版本/体验版
     **Flash : W25Q128FV 16MBytes**
 
     存在的问题: 每次运行到文件系统初始化(mount_root阶段)就随机出现各种错误,
