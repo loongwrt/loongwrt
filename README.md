@@ -17,6 +17,7 @@
 
     bootloader : 采用PMON
     openwrt : master分支
+    **Flash : W25Q128FV 16MBytes**
 
     存在的问题: 每次运行到文件系统初始化(mount_root阶段)就随机出现各种错误,
     例如, 无故重启, 卡死(较少), 内核panic, 待其反复重启数次后方才稳定下来.
