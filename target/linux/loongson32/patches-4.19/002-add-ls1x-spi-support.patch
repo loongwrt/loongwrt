@@ -1,0 +1,117 @@
+--- a/arch/mips/loongson32/common/platform.c
++++ b/arch/mips/loongson32/common/platform.c
+@@ -16,6 +16,7 @@
+ #include <linux/serial_8250.h>
+ #include <linux/stmmac.h>
+ #include <linux/usb/ehci_pdriver.h>
++#include <linux/spi/spi_ls1x.h>
+ 
+ #include <platform.h>
+ #include <loongson1.h>
+@@ -291,6 +292,30 @@ struct platform_device ls1x_gpio1_pdev =
+ 	.resource	= ls1x_gpio1_resources,
+ };
+ 
++/* SPI Flash */
++static struct resource ls1x_spi_resources[] = {
++	[0] = {
++		.start	= LS1X_SPI0_BASE,
++		.end	= LS1X_SPI0_BASE + SZ_16K - 1,
++		.flags	= IORESOURCE_MEM,
++	},
++};
++
++struct platform_device ls1x_spi_pdev = {
++	.name		= "ls1x-spi",
++	.id 		= 0,
++	.num_resources	= ARRAY_SIZE(ls1x_spi_resources),
++	.resource	= ls1x_spi_resources,
++	.dev = {
++		.platform_data = NULL,
++	},
++};
++
++void __init ls1x_spi_set_platdata(struct plat_ls1x_spi *pdata)
++{
++	ls1x_spi_pdev.dev.platform_data = pdata;
++}
++
+ /* NAND Flash */
+ static struct resource ls1x_nand_resources[] = {
+ 	[0] = {
+--- a/drivers/spi/Kconfig
++++ b/drivers/spi/Kconfig
+@@ -411,6 +411,13 @@ config SPI_OC_TINY
+ 	help
+ 	  This is the driver for OpenCores tiny SPI master controller.
+ 
++config SPI_LS1X
++	tristate "Loongson1 SPI"
++	depends on GPIOLIB && MACH_LOONGSON32
++	select SPI_BITBANG
++	help
++	  This is the driver for Loongson1 SPI master controller.
++
+ config SPI_OCTEON
+ 	tristate "Cavium OCTEON SPI controller"
+ 	depends on CAVIUM_OCTEON_SOC
+--- a/drivers/spi/Makefile
++++ b/drivers/spi/Makefile
+@@ -60,6 +60,7 @@ obj-$(CONFIG_SPI_MT65XX)
+ obj-$(CONFIG_SPI_MXS)			+= spi-mxs.o
+ obj-$(CONFIG_SPI_NUC900)		+= spi-nuc900.o
+ obj-$(CONFIG_SPI_OC_TINY)		+= spi-oc-tiny.o
++obj-$(CONFIG_SPI_LS1X)			+= spi-ls1x.o
+ spi-octeon-objs				:= spi-cavium.o spi-cavium-octeon.o
+ obj-$(CONFIG_SPI_OCTEON)		+= spi-octeon.o
+ obj-$(CONFIG_SPI_OMAP_UWIRE)		+= spi-omap-uwire.o
+--- a/arch/mips/include/asm/mach-loongson32/loongson1.h
++++ b/arch/mips/include/asm/mach-loongson32/loongson1.h
+@@ -48,6 +48,12 @@
+ #define LS1X_AC97_BASE			0x1fe74000
+ #define LS1X_NAND_BASE			0x1fe78000
+ #define LS1X_CLK_BASE			0x1fe78030
++#define LS1X_SPI0_BASE			0x1fe80000
++
++#define SPI0_CS0			0
++#define SPI0_CS1			1
++#define SPI0_CS2			2
++#define SPI0_CS3			3
+ 
+ #include <regs-clk.h>
+ #include <regs-mux.h>
+--- a/arch/mips/include/asm/mach-loongson32/platform.h
++++ b/arch/mips/include/asm/mach-loongson32/platform.h
+@@ -11,6 +11,7 @@
+ #define __ASM_MACH_LOONGSON32_PLATFORM_H
+ 
+ #include <linux/platform_device.h>
++#include <linux/spi/spi_ls1x.h>
+ 
+ #include <dma.h>
+ #include <nand.h>
+@@ -26,11 +27,13 @@ extern struct platform_device ls1x_gpio1
+ extern struct platform_device ls1x_nand_pdev;
+ extern struct platform_device ls1x_rtc_pdev;
+ extern struct platform_device ls1x_wdt_pdev;
++extern struct platform_device ls1x_spi_pdev;
+ 
+ void __init ls1x_clk_init(void);
+ void __init ls1x_dma_set_platdata(struct plat_ls1x_dma *pdata);
+ void __init ls1x_nand_set_platdata(struct plat_ls1x_nand *pdata);
+ void __init ls1x_rtc_set_extclk(struct platform_device *pdev);
+ void __init ls1x_serial_set_uartclk(struct platform_device *pdev);
++void __init ls1x_spi_set_platdata(struct plat_ls1x_spi *pdata);
+ 
+ #endif /* __ASM_MACH_LOONGSON32_PLATFORM_H */
+--- a/include/linux/spi/spi_ls1x.h
++++ b/include/linux/spi/spi_ls1x.h
+@@ -6,7 +6,7 @@
+  * struct ls1x_spi_platform_data - platform data of the Loongson1 SPI
+  * @cs_count:	number of pins used for chipselect, control via SOFTCS register.
+  */
+-struct ls1x_spi_platform_data {
++struct plat_ls1x_spi {
+ 	unsigned int cs_count;
+ };
+ 

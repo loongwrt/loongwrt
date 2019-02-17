@@ -1,0 +1,19 @@
+--- a/arch/mips/loongson32/Kconfig
++++ b/arch/mips/loongson32/Kconfig
+@@ -24,6 +24,7 @@ config LOONGSON1_LS1C
+ 	bool "Loongson LS1C board"
+ 	select CEVT_R4K if !MIPS_EXTERNAL_TIMER
+ 	select CSRC_R4K if !MIPS_EXTERNAL_TIMER
++	select SYS_HAS_CPU_MIPS32_R2
+ 	select SYS_HAS_CPU_LOONGSON1C
+ 	select DMA_NONCOHERENT
+ 	select BOOT_ELF32
+@@ -35,6 +36,8 @@ config LOONGSON1_LS1C
+ 	select SYS_HAS_EARLY_PRINTK
+ 	select USE_GENERIC_EARLY_PRINTK_8250
+ 	select COMMON_CLK
++	select MIPS_FPU_EMULATOR
++	select MIPS_O32_FP64_SUPPORT
+ endchoice
+ 
+ menuconfig CEVT_CSRC_LS1X

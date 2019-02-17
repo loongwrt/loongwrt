@@ -1,0 +1,24 @@
+--- a/arch/mips/loongson32/common/prom.c
++++ b/arch/mips/loongson32/common/prom.c
+@@ -9,6 +9,7 @@
+  * option) any later version.
+  */
+ 
++#include <linux/delay.h>
+ #include <linux/serial_reg.h>
+ #include <asm/bootinfo.h>
+ 
+@@ -76,6 +77,13 @@ void __init prom_init(void)
+ 	else
+ 		uart_base = ioremap_nocache(LS1X_UART0_BASE, 0x0f);
+ 	setup_8250_early_printk_port((unsigned long)uart_base, 0, 0);
++
++	/* Reset USB controller to prevent stuck on boot */
++	__raw_writel(__raw_readl(LS1X_MUX_CTRL0) & (~USBHOST_SHUT), LS1X_MUX_CTRL0);
++	__raw_writel(__raw_readl(LS1X_MUX_CTRL1) & (~USBHOST_SHUT), LS1X_MUX_CTRL1);
++	mdelay(200);
++	__raw_writel(__raw_readl(LS1X_MUX_CTRL0) | USBHOST_RSTN, LS1X_MUX_CTRL0);
++	__raw_writel(__raw_readl(LS1X_MUX_CTRL1) | USBHOST_RSTN, LS1X_MUX_CTRL1);
+ }
+ 
+ void __init prom_free_prom_memory(void)

@@ -1,0 +1,11 @@
+#!/bin/sh
+
+. /lib/functions/uci-defaults.sh
+
+board_config_update
+
+ucidef_set_hostname "RosyWrt-N19"
+
+board_config_flush
+
+exit 0

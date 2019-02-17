@@ -1,0 +1,31 @@
+--- a/drivers/net/phy/realtek.c
++++ b/drivers/net/phy/realtek.c
+@@ -211,8 +211,28 @@ static int rtl8366rb_config_init(struct
+ 	return ret;
+ }
+ 
++static int rtl8201el_config_init(struct phy_device *phydev)
++{
++	int err = 0;
++
++	/* Set NO. 25 register, enable RMII mode */
++#ifdef CONFIG_LOONGSON1_LS1C
++	err = phy_write(phydev, 25, 0x0400);
++#endif /* CONFIG_LS1X_GMAC0_RMII */
++
++	return err;
++}
++
+ static struct phy_driver realtek_drvs[] = {
+ 	{
++		.phy_id         = 0x001cc815,
++		.name           = "RTL8201EL Ethernet",
++		.phy_id_mask    = 0x001fffff,
++		.features       = PHY_BASIC_FEATURES,
++		.flags          = PHY_HAS_INTERRUPT,
++		.soft_reset     = &genphy_soft_reset,
++		.config_init    = &rtl8201el_config_init,
++	}, {
+ 		.phy_id         = 0x00008201,
+ 		.name           = "RTL8201CP Ethernet",
+ 		.phy_id_mask    = 0x0000ffff,
