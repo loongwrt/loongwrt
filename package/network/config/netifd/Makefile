@@ -30,7 +30,7 @@ TARGET_CFLAGS += \
 	-I$(STAGING_DIR)/usr/include \
 	-flto
 
-TARGET_LDFLAGS += -flto -fuse-linker-plugin
+TARGET_LDFLAGS += -flto
 
 CMAKE_OPTIONS += \
 	-DLIBNL_LIBS=-lnl-tiny \

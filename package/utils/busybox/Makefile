@@ -93,7 +93,7 @@ ifeq ($(CONFIG_USE_GLIBC),y)
 endif
 
 TARGET_CFLAGS += -flto
-TARGET_LDFLAGS += -flto=jobserver -fuse-linker-plugin
+TARGET_LDFLAGS += -flto=jobserver
 
 MAKE_VARS :=
 MAKE_FLAGS += \

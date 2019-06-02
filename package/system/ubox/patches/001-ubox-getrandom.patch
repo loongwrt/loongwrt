@@ -1,0 +1,86 @@
+--- a/log/logread.c
++++ b/log/logread.c
+@@ -368,7 +368,8 @@ int main(int argc, char **argv)
+ 
+ 	/* ugly ugly ugly ... we need a real reconnect logic */
+ 	do {
+-		struct ubus_request req = { 0 };
++		struct ubus_request req;
++		bzero((void *)&req, sizeof(struct ubus_request));
+ 
+ 		ret = ubus_lookup_id(ctx, "log", &id);
+ 		if (ret) {
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -19,15 +19,15 @@ ENDIF()
+ INCLUDE (CheckSymbolExists)
+ CHECK_SYMBOL_EXISTS(SYS_getrandom syscall.h getrandom)
+ 
+-IF(getrandom)
+-  ADD_EXECUTABLE(getrandom getrandom.c)
+-  INSTALL(TARGETS getrandom
+-          RUNTIME DESTINATION bin
+-  )
+-ELSE()
+-  message( FATAL_ERROR "Kernel too old, missing SYS_getrandom system call")
++IF(NOT getrandom)
++  ADD_DEFINITIONS(-DUSE_URANDOM)
+ ENDIF()
+ 
++ADD_EXECUTABLE(getrandom getrandom.c)
++INSTALL(TARGETS getrandom
++  RUNTIME DESTINATION bin
++)
++
+ ADD_EXECUTABLE(kmodloader kmodloader.c)
+ TARGET_LINK_LIBRARIES(kmodloader ubox)
+ 
+--- a/getrandom.c
++++ b/getrandom.c
+@@ -17,7 +17,13 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#ifdef USE_URANDOM
++#include<sys/types.h>
++#include<sys/stat.h>
++#include<fcntl.h>
++#else
+ #include <sys/syscall.h>
++#endif
+ #include <unistd.h>
+ 
+ #define ERROR_EXIT(fmt, ...) do { \
+@@ -39,7 +45,11 @@ int main(int argc, char *argv[])
+ 
+ 	if (isatty(STDOUT_FILENO))
+ 		ERROR_EXIT("Not outputting random to a tty\n");
+-
++#ifdef USE_URANDOM
++	int ret, f = open("/dev/urandom", O_RDONLY);
++	if (f < 0)
++		ERROR_EXIT("Can not open file /dev/urandom\n");
++#endif
+ 	int nbtot = atoi(argv[1]);
+ 	if (nbtot < 1)
+ 		ERROR_EXIT("Invalid <nb> param (must be > 0)\n");
+@@ -49,11 +59,19 @@ int main(int argc, char *argv[])
+ 	while (nbtot > 0) {
+ 		if (nbtot <= sizeof(buf))
+ 			len = nbtot;
++#ifdef USE_URANDOM
++		if ((ret = read(f, buf, len)) == -1)
++			ERROR_EXIT("read /dev/urandom failed: %m\n");
++		if (write(STDOUT_FILENO, buf, ret) != ret)
++			ERROR_EXIT("write() failed: %m\n");
++		nbtot -= ret;
++#else
+ 		if (syscall(SYS_getrandom, buf, len, 0) == -1)
+ 			ERROR_EXIT("getrandom() failed: %m\n");
+ 		if (write(STDOUT_FILENO, buf, len) != len)
+ 			ERROR_EXIT("write() failed: %m\n");
+ 		nbtot -= sizeof(buf);
++#endif
+ 	}
+ 
+ 	return 0;

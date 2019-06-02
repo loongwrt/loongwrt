@@ -1,0 +1,75 @@
+--- a/system-linux.c
++++ b/system-linux.c
+@@ -2302,8 +2302,10 @@ static int system_iprule(struct iprule *
+ 			nla_put_u32(msg, FRA_TABLE, rule->lookup);
+ 	}
+ 
++#ifdef FRA_SUPPRESS_PREFIXLEN
+ 	if (rule->flags & IPRULE_SUP_PREFIXLEN)
+ 		nla_put_u32(msg, FRA_SUPPRESS_PREFIXLEN, rule->sup_prefixlen);
++#endif
+ 
+ 	if (rule->flags & IPRULE_GOTO)
+ 		nla_put_u32(msg, FRA_GOTO, rule->gotoid);
+@@ -2942,8 +2944,10 @@ static int system_add_vxlan(const char *
+ 		nla_put_u32(msg, IFLA_VXLAN_ID, id);
+ 	}
+ 
++#if defined(IFLA_VXLAN_LOCAL6) || defined(IFLA_VXLAN_GROUP6)
+ 	if (v6) {
+ 		struct in6_addr in6buf;
++#ifdef IFLA_VXLAN_LOCAL6
+ 		if ((cur = tb[TUNNEL_ATTR_LOCAL])) {
+ 			if (inet_pton(AF_INET6, blobmsg_data(cur), &in6buf) < 1) {
+ 				ret = -EINVAL;
+@@ -2951,7 +2955,8 @@ static int system_add_vxlan(const char *
+ 			}
+ 			nla_put(msg, IFLA_VXLAN_LOCAL6, sizeof(in6buf), &in6buf);
+ 		}
+-
++#endif
++#ifdef IFLA_VXLAN_GROUP6
+ 		if ((cur = tb[TUNNEL_ATTR_REMOTE])) {
+ 			if (inet_pton(AF_INET6, blobmsg_data(cur), &in6buf) < 1) {
+ 				ret = -EINVAL;
+@@ -2959,7 +2964,9 @@ static int system_add_vxlan(const char *
+ 			}
+ 			nla_put(msg, IFLA_VXLAN_GROUP6, sizeof(in6buf), &in6buf);
+ 		}
++#endif
+ 	} else {
++#endif /* defined(IFLA_VXLAN_LOCAL6) || defined(IFLA_VXLAN_GROUP6) */
+ 		struct in_addr inbuf;
+ 
+ 		if ((cur = tb[TUNNEL_ATTR_LOCAL])) {
+@@ -2977,7 +2984,9 @@ static int system_add_vxlan(const char *
+ 			}
+ 			nla_put(msg, IFLA_VXLAN_GROUP, sizeof(inbuf), &inbuf);
+ 		}
++#if defined(IFLA_VXLAN_LOCAL6) || defined(IFLA_VXLAN_GROUP6)
+ 	}
++#endif /* defined(IFLA_VXLAN_LOCAL6) || defined(IFLA_VXLAN_GROUP6) */
+ 
+ 	uint32_t port = 4789;
+ 	if ((cur = tb_data[VXLAN_DATA_ATTR_PORT])) {
+@@ -2989,16 +2998,19 @@ static int system_add_vxlan(const char *
+ 	}
+ 	nla_put_u16(msg, IFLA_VXLAN_PORT, htons(port));
+ 
++#if defined(IFLA_VXLAN_UDP_ZERO_CSUM) && defined(IFLA_VXLAN_UDP_ZERO_CSUM6_RX)
+ 	if ((cur = tb_data[VXLAN_DATA_ATTR_RXCSUM])) {
+ 		bool rxcsum = blobmsg_get_bool(cur);
+ 		nla_put_u8(msg, IFLA_VXLAN_UDP_ZERO_CSUM6_RX, !rxcsum);
+ 	}
+-
++#endif
++#if defined(IFLA_VXLAN_UDP_ZERO_CSUM) && defined(IFLA_VXLAN_UDP_ZERO_CSUM6_TX)
+ 	if ((cur = tb_data[VXLAN_DATA_ATTR_TXCSUM])) {
+ 		bool txcsum = blobmsg_get_bool(cur);
+ 		nla_put_u8(msg, IFLA_VXLAN_UDP_CSUM, txcsum);
+ 		nla_put_u8(msg, IFLA_VXLAN_UDP_ZERO_CSUM6_TX, !txcsum);
+ 	}
++#endif
+ 
+ 	if ((cur = tb[TUNNEL_ATTR_TOS])) {
+ 		char *str = blobmsg_get_string(cur);

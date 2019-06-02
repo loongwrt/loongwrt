@@ -194,7 +194,7 @@ $(call Build/Configure/Default,, \
 endef
 
 TARGET_CFLAGS += -ffunction-sections -fdata-sections -flto
-TARGET_LDFLAGS += -Wl,--gc-sections -flto -fuse-linker-plugin
+TARGET_LDFLAGS += -Wl,--gc-sections -flto
 
 MAKE_FLAGS += COPTS="$(TARGET_CFLAGS)" \
 		PRECOMPILED_FILTER=1 \
