@@ -153,6 +153,7 @@ define Package/base-files/install
 		$(1)/etc/profile
 
 	mkdir -p $(1)/CONTROL
+	mkdir -p $(1)/boot
 	mkdir -p $(1)/dev
 	mkdir -p $(1)/etc/config
 	mkdir -p $(1)/etc/crontabs
