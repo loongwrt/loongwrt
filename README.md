@@ -23,6 +23,14 @@
 * Flash :  **W25Q128FV 16MBytes**
 * 存在的问题: 每次运行到文件系统初始化(mount_root阶段)就随机出现各种错误, 例如, 无故重启, 卡死(较少), 内核panic, 待其反复重启数次后方才稳定下来.
 
+3. 2019年6月1日，龙芯派2代在一众好友的帮助下移植成功.
+
+* bootloader : 采用[PMON](https://github.com/FlyGoat/pmon-ls2k-pi2/releases/download/v2.3/flash.bin)
+* openwrt : master分支
+* loongwrt : 分支名为loong64-3.10
+* linux : linux源码在[这里](http://cgit.loongnix.org/cgit/linux-3.10)可以下载
+* 存在的问题 : 该版本仅为一个初稿，基础应用和外设的支持和稳定性有待更新和修复，欢迎大家踊跃参与贡献.
+
 # 新版期待
 
 <div align=center><img src="https://raw.githubusercontent.com/loongwrt/loongwrt/master/pic/ls1c300b-n19-board.jpg" alt="ls1c300b-n19-board"/></div>
