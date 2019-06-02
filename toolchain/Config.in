@@ -146,14 +146,23 @@ menuconfig EXTERNAL_TOOLCHAIN
 		  Specify additional directories searched for header files (override
 		  CPPFLAGS). Use ./DIR for directories relative to the root above.
 
-	config TOOLCHAIN_LIB_PATH
+	config TOOLCHAIN_LIB_PATH_HOST
 		string
-		prompt "Toolchain library path"  if DEVEL
+		prompt "Toolchain library path (for host)"  if DEVEL
 		depends on EXTERNAL_TOOLCHAIN && !NATIVE_TOOLCHAIN
 		default "./usr/lib ./lib"
 		help
 		  Specify additional directories searched for libraries (override LDFLAGS).
 		  Use ./DIR for directories relative to the root above.
+
+	config TOOLCHAIN_LIB_PATH_TARGET
+		string
+		prompt "Toolchain library path (for target platform)"  if DEVEL
+		depends on EXTERNAL_TOOLCHAIN && !NATIVE_TOOLCHAIN
+		default "./sysroot/usr/lib ./sysroot/lib"
+		help
+		  Specify additional directories searched for libraries when cross compilation
+		  (override LDFLAGS). Use ./DIR for directories relative to the root above.
 
 config NEED_TOOLCHAIN
 	bool
